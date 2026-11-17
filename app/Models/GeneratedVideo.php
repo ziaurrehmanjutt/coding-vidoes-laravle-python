@@ -59,6 +59,15 @@ class GeneratedVideo extends Model
             && Storage::disk(config('video.disk'))->exists($this->path);
     }
 
+    public function deleteWithFile(): void
+    {
+        if ($this->path !== null) {
+            Storage::disk(config('video.disk'))->delete($this->path);
+        }
+
+        $this->delete();
+    }
+
     public function isPlayable(): bool
     {
         return $this->status === VideoStatus::Completed && $this->fileExists();

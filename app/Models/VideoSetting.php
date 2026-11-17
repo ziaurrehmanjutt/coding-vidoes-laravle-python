@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
     'tick_sound',
     'think_seconds',
     'theme',
+    'quality',
     'channel_name',
 ])]
 class VideoSetting extends Model

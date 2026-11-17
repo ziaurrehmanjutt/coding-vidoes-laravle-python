@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class PredictOutputRequest extends FormRequest
 {
@@ -12,7 +13,7 @@ class PredictOutputRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -23,7 +24,8 @@ class PredictOutputRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'code' => ['required', 'string', 'max:5000'],
+            'language' => ['nullable', Rule::in(array_keys(config('video.languages')))],
         ];
     }
 }

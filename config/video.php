@@ -47,6 +47,7 @@ return [
         'tick_sound' => true,
         'think_seconds' => 8,
         'theme' => 'midnight',
+        'quality' => 'high',
         'channel_name' => 'Python Daily',
     ],
 
@@ -59,6 +60,34 @@ return [
         'en-IN-NeerjaNeural' => 'Neerja (India, female)',
         'en-IN-PrabhatNeural' => 'Prabhat (India, male)',
         'en-AU-NatashaNeural' => 'Natasha (Australia, female)',
+    ],
+
+    'languages' => [
+        'python' => 'Python',
+        'javascript' => 'JavaScript',
+        'typescript' => 'TypeScript',
+        'php' => 'PHP',
+        'java' => 'Java',
+        'csharp' => 'C#',
+        'cpp' => 'C++',
+        'go' => 'Go',
+        'sql' => 'SQL',
+    ],
+
+    /*
+    | Numbered series used to post questions in order ("Day 1", "Challenge 3").
+    | The order here is the posting order in the upload queue.
+    */
+
+    'series' => [
+        'day' => 'Day',
+        'challenge' => 'Challenge',
+    ],
+
+    'qualities' => [
+        'standard' => 'Standard (smallest file)',
+        'high' => 'High (recommended)',
+        'max' => 'Maximum (sharpest, largest file)',
     ],
 
     'themes' => [
