@@ -19,6 +19,12 @@ use Illuminate\Database\Eloquent\Model;
     'theme',
     'quality',
     'channel_name',
+    'answer_voice',
+    'comment_prompt',
+    'hook_line',
+    'mascot',
+    'reveal_effects',
+    'sound_effects',
 ])]
 class VideoSetting extends Model
 {
@@ -37,6 +43,11 @@ class VideoSetting extends Model
             'narrate_question' => 'boolean',
             'narrate_explanation' => 'boolean',
             'tick_sound' => 'boolean',
+            'comment_prompt' => 'boolean',
+            'hook_line' => 'boolean',
+            'mascot' => 'boolean',
+            'reveal_effects' => 'boolean',
+            'sound_effects' => 'boolean',
             'think_seconds' => 'integer',
         ];
     }

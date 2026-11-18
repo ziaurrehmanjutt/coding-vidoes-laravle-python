@@ -237,3 +237,24 @@ it('rejects an unknown language when predicting an output', function () {
         ->assertUnprocessable()
         ->assertJsonValidationErrors('language');
 });
+
+it('seeds explanations written in Markdown', function () {
+    $this->seed(QuestionSeeder::class);
+
+    Question::all()->each(fn (Question $question) => expect($question->explanation)->toMatch('/\*\*|`/'));
+});
+
+it('upgrades a plain explanation but keeps one that already uses Markdown', function () {
+    $this->seed(QuestionSeeder::class);
+
+    $plain = Question::where('title', 'like', '%')->orderBy('id')->first();
+    $formatted = Question::orderBy('id')->skip(1)->first();
+
+    $plain->update(['explanation' => 'Plain old text.']);
+    $formatted->update(['explanation' => 'My own **notes**.']);
+
+    $this->seed(QuestionSeeder::class);
+
+    expect($plain->refresh()->explanation)->toMatch('/\*\*|`/')
+        ->and($formatted->refresh()->explanation)->toBe('My own **notes**.');
+});

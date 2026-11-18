@@ -2,7 +2,7 @@
 
 Make vertical (1080x1920) programming quiz videos for YouTube Shorts, Reels and TikTok.
 
-Each video shows a question with code and options A to D, a thinking countdown, the correct answer, and a spoken explanation. You manage the questions in a Laravel web app. A Python (FastAPI) service renders the videos and runs the code to predict its output.
+Each video shows a question with code and options A to D, a thinking countdown, the correct answer, and a written explanation (Markdown works). The voice only asks the question, then says "Correct answer is option B". You manage the questions in a Laravel web app. A Python (FastAPI) service renders the videos and runs the code to predict its output.
 
 ```
 Browser ──> Laravel (UI, database, files)  ──HTTP + token──>  Python service (FastAPI)

@@ -65,6 +65,12 @@ class SettingsPayload(BaseModel):
     theme: str = "midnight"
     quality: str = "high"
     channel_name: str | None = None
+    answer_voice: str | None = None
+    comment_prompt: bool = True
+    hook_line: bool = True
+    mascot: bool = True
+    reveal_effects: bool = True
+    sound_effects: bool = True
 
 
 class RenderRequest(BaseModel):

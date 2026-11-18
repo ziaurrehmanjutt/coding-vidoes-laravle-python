@@ -12,13 +12,15 @@ import numpy as np
 
 from . import audio, config
 from .frames import HEIGHT, WIDTH, FrameBuilder
-from .languages import get_language
+from .hooks import pick_hook
+from .markdown import plain_text
 from .themes import get_theme
 from .tts import VoiceSettings, speech_samples
 
 ProgressCallback = Callable[[int, str], None]
 
 OUTRO_SECONDS = 2.5
+REVEAL_DELAY = 0.3
 
 # Lower CRF = sharper picture and a bigger file. Slower presets compress better.
 QUALITY_PRESETS = {
@@ -33,25 +35,19 @@ def estimate_speech_seconds(text: str) -> float:
 
 
 def narration_script(question: dict, settings: dict) -> dict[str, str | None]:
-    """The sentences the voice reads. None means that part stays silent."""
-    correct = int(question["correct_option"])
-    letter = chr(65 + correct)
-    options = question["options"]
-    spoken_options = " ".join(f"Option {chr(65 + index)}. {option}." for index, option in enumerate(options))
+    """The sentences the voice reads. None means that part stays silent.
 
-    series_label = (question.get("series_label") or "").strip()
-    series_intro = f"{series_label}. " if series_label else ""
-
-    narrate_question = settings["narrate_question"]
-    narrate_explanation = settings["narrate_explanation"]
+    The options and the explanation are only shown on screen, never spoken:
+    the voice asks the question, waits while the timer runs, then names the right letter.
+    """
+    letter = chr(65 + int(question["correct_option"]))
+    hook = f"{pick_hook(question, int(settings['think_seconds']))} " if settings.get("hook_line", True) else ""
 
     return {
-        "question": f"{get_language(question.get('language')).spoken} quiz. {series_intro}{question['question_text']} {spoken_options}"
-        if narrate_question
-        else None,
-        "think": f"You have {settings['think_seconds']} seconds. Think!" if narrate_question else None,
-        "reveal": f"Time's up! The correct answer is option {letter}. {options[correct]}." if narrate_explanation else None,
-        "explain": question["explanation"] if narrate_explanation else None,
+        "question": f"{hook}{question['question_text']} Choose the correct answer." if settings["narrate_question"] else None,
+        "think": None,
+        "reveal": f"Correct answer is option {letter}." if settings["narrate_explanation"] else None,
+        "explain": None,
     }
 
 
@@ -66,6 +62,11 @@ class Narration:
         voice = VoiceSettings(
             settings["voice"], settings["speech_rate"], settings["speech_pitch"], settings["speech_volume"]
         )
+        # The answer is read by a second voice so it stands out from the question.
+        answer_voice = VoiceSettings(
+            settings.get("answer_voice") or settings["voice"],
+            settings["speech_rate"], settings["speech_pitch"], settings["speech_volume"],
+        )
         texts = [(name, text) for name, text in script.items() if text]
 
         for position, (name, text) in enumerate(texts):
@@ -74,7 +75,7 @@ class Narration:
                 self.samples[name] = None
                 continue
             try:
-                self.samples[name] = speech_samples(text, voice)
+                self.samples[name] = speech_samples(text, answer_voice if name == "reveal" else voice)
             except Exception as exc:  # network or voice problems must not stop the video
                 self.error = f"{type(exc).__name__}: {exc}"[:160]
                 self.samples[name] = None
@@ -88,15 +89,14 @@ class Narration:
 
 
 def build_timeline(narration: Narration, settings: dict, question: dict) -> list[tuple[str, float]]:
-    explanation_words = len(question["explanation"].split())
-    reading_time = 2.0 + 0.35 * explanation_words
+    explanation_words = len(plain_text(question["explanation"]).split())
+    reading_time = min(25.0, 2.0 + 0.33 * explanation_words)
 
-    explain_seconds = narration.seconds("explain") + 1.5 if narration.script.get("explain") else reading_time
     return [
-        ("question", max(4.0, narration.seconds("question") + 0.8)),
+        ("question", max(3.0, narration.seconds("question") + 0.8)),
         ("think", float(settings["think_seconds"])),
-        ("reveal", max(3.0, narration.seconds("reveal") + 1.0)),
-        ("explain", max(5.0, explain_seconds)),
+        ("reveal", max(2.5, narration.seconds("reveal") + 1.4)),
+        ("explain", max(4.0, reading_time)),
         ("outro", OUTRO_SECONDS),
     ]
 
@@ -104,9 +104,13 @@ def build_timeline(narration: Narration, settings: dict, question: dict) -> list
 def build_audio(narration: Narration, timeline: list[tuple[str, float]], settings: dict, total_seconds: float) -> np.ndarray:
     track = np.zeros(int(round(total_seconds * audio.SAMPLE_RATE)), dtype=np.float32)
 
+    effects = settings.get("sound_effects", True)
+
     start = 0.0
     for name, duration in timeline:
         if name == "question":
+            if effects:
+                audio.mix_in(track, audio.whoosh(), start)
             _place(track, narration.samples.get("question"), start + 0.3)
         elif name == "think":
             _place(track, narration.samples.get("think"), start + 0.15)
@@ -114,9 +118,14 @@ def build_audio(narration: Narration, timeline: list[tuple[str, float]], setting
                 for second in range(int(duration)):
                     last_seconds = second >= int(duration) - 3
                     audio.mix_in(track, audio.tick(high=last_seconds), start + second, gain=0.8)
+            if effects and duration > 3.2:
+                audio.mix_in(track, audio.drumroll(3.0), start + duration - 3.0, gain=0.55)
         elif name == "reveal":
-            audio.mix_in(track, audio.ding(), start, gain=1.0)
-            _place(track, narration.samples.get("reveal"), start + 0.45)
+            if effects:
+                audio.mix_in(track, audio.buzzer(), start, gain=0.9)
+                audio.mix_in(track, audio.pop(), start + REVEAL_DELAY, gain=0.8)
+            audio.mix_in(track, audio.ding(), start + (REVEAL_DELAY if effects else 0.0), gain=1.0)
+            _place(track, narration.samples.get("reveal"), start + (0.75 if effects else 0.45))
         elif name == "explain":
             _place(track, narration.samples.get("explain"), start + 0.4)
         start += duration
@@ -131,12 +140,14 @@ def _place(track: np.ndarray, samples: np.ndarray | None, start: float) -> None:
 def frame_for(builder: FrameBuilder, scene: str, elapsed: float, duration: float):
     """Return (cache key, draw function). Equal keys produce identical frames."""
     if scene == "question":
-        return ("question",), builder.question_scene
+        step = min(int(elapsed * 30), 12)
+        return ("question", step), lambda: builder.question_scene(step / 30)
     if scene == "think":
         remaining = max(0.0, duration - int(elapsed * 10) / 10)
         return ("think", int(remaining * 10)), lambda: builder.think_scene(remaining)
     if scene == "reveal":
-        return ("reveal",), builder.reveal_scene
+        step = min(max(0, int((elapsed - REVEAL_DELAY) * 24)), 48)
+        return ("reveal", step), lambda: builder.reveal_scene(step / 24)
     if scene == "explain":
         progress = min(1.0, elapsed / max(0.5, duration * 0.8))
         step = int(progress * 240)
@@ -169,7 +180,11 @@ def render_video(question: dict, settings: dict, output_path: str, report: Progr
     total_seconds = total_frames / fps
 
     builder = FrameBuilder(
-        get_theme(settings["theme"]), question, settings.get("channel_name"), int(settings["think_seconds"])
+        get_theme(settings["theme"]), question, settings.get("channel_name"), int(settings["think_seconds"]),
+        comment_prompt=bool(settings.get("comment_prompt", True)),
+        hook_text=pick_hook(question, int(settings["think_seconds"])) if settings.get("hook_line", True) else None,
+        mascot=bool(settings.get("mascot", True)),
+        reveal_effects=bool(settings.get("reveal_effects", True)),
     )
 
     with tempfile.TemporaryDirectory() as folder:

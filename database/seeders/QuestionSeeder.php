@@ -12,6 +12,7 @@ class QuestionSeeder extends Seeder
     /**
      * Seed example questions in several languages. Every correct answer was
      * checked by running its code, and existing questions are never overwritten.
+     * The one exception: an explanation written as plain text is upgraded to the Markdown version.
      *
      * Python questions become "Day 1, Day 2..." and the others "Challenge 1, Challenge 2...".
      * Upload titles, descriptions and hashtags are generated for questions that have none.
@@ -35,6 +36,10 @@ class QuestionSeeder extends Seeder
 
             $question->category_id ??= $category->id;
 
+            if ($this->isPlainText($question->explanation)) {
+                $question->explanation = $data['explanation'];
+            }
+
             $numberIsFree = ! Question::query()
                 ->where('series', $series)
                 ->where('series_number', $counters[$series])
@@ -56,6 +61,14 @@ class QuestionSeeder extends Seeder
     }
 
     /**
+     * Explanations that use no Markdown yet can be replaced by the formatted seed text.
+     */
+    private function isPlainText(string $text): bool
+    {
+        return ! str_contains($text, '*') && ! str_contains($text, '`');
+    }
+
+    /**
      * @return list<array{language: string, category: string, title: string, code: string, options: list<string>, correct_option: int, explanation: string}>
      */
     private function questions(): array
@@ -68,7 +81,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['s = "Python"', '', 'print(s[1:5] + s[-2:])']),
                 'options' => ['ython', 'ythoon', 'Pythoon', 'ythonon'],
                 'correct_option' => 1,
-                'explanation' => 's[1:5] takes the characters at index 1 to 4, which is "ytho". s[-2:] takes the last two characters, which is "on". Joining them gives "ythoon".',
+                'explanation' => '- `s[1:5]` takes index 1 to 4: **"ytho"**
+- `s[-2:]` takes the last two: **"on"**
+- Joined: **ythoon**',
             ],
             [
                 'language' => 'python',
@@ -77,7 +92,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['nums = [1, 2, 3, 4, 5]', 'print(nums[1:4])']),
                 'options' => ['[1, 2, 3, 4]', '[2, 3, 4]', '[2, 3, 4, 5]', '[1, 2, 3]'],
                 'correct_option' => 1,
-                'explanation' => 'nums[1:4] starts at index 1 and stops before index 4. So it takes the items at index 1, 2 and 3, which are 2, 3 and 4.',
+                'explanation' => '`nums[1:4]` starts at index **1** and stops *before* index **4**.
+- It takes the items at index 1, 2 and 3
+- Result: **2, 3, 4**',
             ],
             [
                 'language' => 'python',
@@ -86,7 +103,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print(7 // 2, 7 % 2)']),
                 'options' => ['3.5 1', '3 1', '4 1', '3 0'],
                 'correct_option' => 1,
-                'explanation' => 'Double slash is floor division, so 7 // 2 is 3. Percent gives the remainder, so 7 % 2 is 1. Print shows both separated by a space.',
+                'explanation' => '- `7 // 2` is floor division: **3**
+- `7 % 2` is the remainder: **1**
+- `print` shows both with a space between them',
             ],
             [
                 'language' => 'python',
@@ -95,7 +114,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print("ab" * 3 + "c")']),
                 'options' => ['ababc', 'abababc', 'ab3c', 'abcabcabc'],
                 'correct_option' => 1,
-                'explanation' => 'Multiplying a string repeats it. "ab" times 3 is "ababab". Then plus "c" joins one more letter, giving "abababc".',
+                'explanation' => '- `"ab" * 3` repeats the string: **"ababab"**
+- `+ "c"` adds one more letter
+- Result: **abababc**',
             ],
             [
                 'language' => 'python',
@@ -104,7 +125,10 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['a = [1, 2]', 'b = a', 'b.append(3)', 'print(a)']),
                 'options' => ['[1, 2]', '[1, 2, 3]', '[3]', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'b = a does not copy the list. Both names point to the same list. So appending to b also changes a, and a prints as 1, 2, 3.',
+                'explanation' => '`b = a` does **not** copy the list.
+- Both names point to the *same* list
+- So `b.append(...)` also changes `a`
+- `a` prints **1, 2, 3**',
             ],
             [
                 'language' => 'python',
@@ -113,7 +137,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['d = {"a": 1, "b": 2}', 'print(d.get("c", 0) + d["b"])']),
                 'options' => ['0', '1', '2', 'KeyError'],
                 'correct_option' => 2,
-                'explanation' => 'd.get("c", 0) returns the default 0 because the key c does not exist. Then d["b"] is 2. So 0 plus 2 is 2.',
+                'explanation' => '- `d.get("c", 0)` gives the default **0**, because key `c` does not exist
+- `d["b"]` is **2**
+- So 0 + 2 = **2**',
             ],
             [
                 'language' => 'python',
@@ -122,7 +148,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print(sum(range(1, 5)))']),
                 'options' => ['15', '10', '9', '14'],
                 'correct_option' => 1,
-                'explanation' => 'range(1, 5) gives 1, 2, 3 and 4, because the end value is not included. Their sum is 10.',
+                'explanation' => '`range(1, 5)` gives **1, 2, 3, 4** - the end value is *not included*.
+Their sum is **10**.',
             ],
             [
                 'language' => 'python',
@@ -131,7 +158,10 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['def add(x, items=[]):', '    items.append(x)', '    return items', '', 'add(1)', 'print(add(2))']),
                 'options' => ['[2]', '[1, 2]', '[1]', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'The default list is created only once, when the function is defined. The first call adds 1 to it. The second call adds 2 to the same list, so it prints 1, 2.',
+                'explanation' => 'The default list is created **once**, when the function is defined.
+- The 1st call adds 1
+- The 2nd call adds 2 to the *same* list
+- So it prints **1, 2**',
             ],
             [
                 'language' => 'python',
@@ -140,7 +170,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print("hello world".title().replace(" ", "_"))']),
                 'options' => ['hello_world', 'Hello_World', 'Hello World', 'HELLO_WORLD'],
                 'correct_option' => 1,
-                'explanation' => 'title() capitalizes each word, giving "Hello World". Then replace changes the space into an underscore, giving "Hello_World".',
+                'explanation' => '- `title()` capitalizes each word: **"Hello World"**
+- `replace` changes the space into `_`
+- Result: **Hello_World**',
             ],
             [
                 'language' => 'python',
@@ -149,7 +181,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print(0 or "" or "py")']),
                 'options' => ['0', 'py', 'True', 'None'],
                 'correct_option' => 1,
-                'explanation' => 'The or operator returns the first truthy value. Zero and the empty string are both falsy, so it moves on and returns "py".',
+                'explanation' => '`or` returns the *first truthy* value.
+- `0` and `""` are both falsy
+- So it moves on and returns **"py"**',
             ],
             [
                 'language' => 'python',
@@ -158,7 +192,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['a, b = 1, 2', 'a, b = b, a + b', 'print(a, b)']),
                 'options' => ['2 3', '2 2', '1 3', '3 2'],
                 'correct_option' => 0,
-                'explanation' => 'The right side is worked out first using the old values: b is 2, and a plus b is 3. Then a becomes 2 and b becomes 3.',
+                'explanation' => 'The right side is worked out **first**, using the old values.
+- `b` is 2 and `a + b` is 3
+- Then `a` becomes **2** and `b` becomes **3**',
             ],
             [
                 'language' => 'python',
@@ -167,7 +203,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print([x * x for x in range(5) if x % 2 == 0])']),
                 'options' => ['[0, 4, 16]', '[0, 1, 4, 9, 16]', '[4, 16]', '[1, 9]'],
                 'correct_option' => 0,
-                'explanation' => 'x runs from 0 to 4, and the if keeps only even numbers: 0, 2 and 4. Squaring them gives 0, 4 and 16.',
+                'explanation' => '- `x` runs from 0 to 4
+- The `if` keeps only even numbers: **0, 2, 4**
+- Squaring them gives **0, 4, 16**',
             ],
             [
                 'language' => 'python',
@@ -176,7 +214,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print(type(3 / 1).__name__)']),
                 'options' => ['int', 'float', 'number', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'A single slash always does true division, and the result is a float even when it divides evenly. So the type name is float.',
+                'explanation' => 'A single `/` always does *true division*.
+The result is a float even when it divides evenly, so the type is **float**.',
             ],
             [
                 'language' => 'python',
@@ -185,7 +224,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['s = "Python"', 'print(s[-1] + s[0])']),
                 'options' => ['nP', 'Pn', 'nn', 'Py'],
                 'correct_option' => 0,
-                'explanation' => 's[-1] is the last character, n. s[0] is the first character, P. Joining them gives nP.',
+                'explanation' => '- `s[-1]` is the last character: **n**
+- `s[0]` is the first character: **P**
+- Joined: **nP**',
             ],
             [
                 'language' => 'python',
@@ -194,7 +235,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['print(len({1, 2, 2, 3, 3, 3}))']),
                 'options' => ['6', '3', '4', '2'],
                 'correct_option' => 1,
-                'explanation' => 'A set keeps only unique values. The duplicates collapse, leaving 1, 2 and 3. So the length is 3.',
+                'explanation' => 'A `set` keeps only **unique** values.
+The duplicates collapse, leaving 1, 2 and 3 - so the length is **3**.',
             ],
             [
                 'language' => 'javascript',
@@ -203,7 +245,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log(typeof null)']),
                 'options' => ['null', 'object', 'undefined', 'number'],
                 'correct_option' => 1,
-                'explanation' => 'This is a famous quirk. typeof null returns the string object, because of an old bug in the language that was never fixed.',
+                'explanation' => 'This is a famous quirk!
+`typeof null` returns **"object"**.
+It is an old bug in the language that was never fixed.',
             ],
             [
                 'language' => 'javascript',
@@ -212,7 +256,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log([1, 2, 3].map(n => n * 2).join("-"))']),
                 'options' => ['1-2-3', '2-4-6', '2,4,6', '246'],
                 'correct_option' => 1,
-                'explanation' => 'map doubles every item, giving 2, 4 and 6. Then join glues them together using a dash, so the result is 2-4-6.',
+                'explanation' => '- `map` doubles every item: **2, 4, 6**
+- `join("-")` glues them together with a dash
+- Result: **2-4-6**',
             ],
             [
                 'language' => 'javascript',
@@ -221,7 +267,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log("5" + 3, "5" - 3)']),
                 'options' => ['8 2', '53 2', '53 53', '8 8'],
                 'correct_option' => 1,
-                'explanation' => 'Plus with a string joins text, so "5" + 3 is "53". Minus only works on numbers, so "5" becomes 5 and 5 - 3 is 2.',
+                'explanation' => '- `+` with a string joins text: `"5" + 3` is **"53"**
+- `-` only works on numbers, so `"5"` becomes 5
+- `5 - 3` is **2**',
             ],
             [
                 'language' => 'javascript',
@@ -230,7 +278,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log(0.1 + 0.2 === 0.3)']),
                 'options' => ['true', 'false', 'undefined', 'NaN'],
                 'correct_option' => 1,
-                'explanation' => 'Decimal numbers are stored in binary, so 0.1 + 0.2 is really 0.30000000000000004. That is not exactly 0.3, so the comparison is false.',
+                'explanation' => 'Decimals are stored in *binary*, so `0.1 + 0.2` is really **0.30000000000000004**.
+That is not exactly `0.3`, so the comparison is **false**.',
             ],
             [
                 'language' => 'javascript',
@@ -239,7 +288,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['const a = [1, 2, 3];', 'const b = a;', 'b.push(4);', 'console.log(a.length)']),
                 'options' => ['3', '4', 'undefined', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'const stops you from reassigning b, but both names still point to the same array. Pushing to b changes it for a too, so the length is 4.',
+                'explanation' => '`const` stops you *reassigning* `b`, but both names point to the **same array**.
+Pushing to `b` changes it for `a` too, so the length is **4**.',
             ],
             [
                 'language' => 'javascript',
@@ -248,7 +298,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log([..."abc"].reverse().join(""))']),
                 'options' => ['abc', 'cba', 'bca', 'acb'],
                 'correct_option' => 1,
-                'explanation' => 'The spread turns the string into the letters a, b and c. reverse flips their order, and join with an empty string glues them back as cba.',
+                'explanation' => '- The spread turns the string into the letters **a, b, c**
+- `reverse` flips their order
+- `join("")` glues them back: **cba**',
             ],
             [
                 'language' => 'javascript',
@@ -257,7 +309,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['let x = 1;', '{', '  let x = 2;', '}', 'console.log(x)']),
                 'options' => ['1', '2', 'undefined', 'Error'],
                 'correct_option' => 0,
-                'explanation' => 'let is block scoped. The x inside the braces is a different variable, so the outer x is still 1.',
+                'explanation' => '`let` is *block scoped*.
+The `x` inside the braces is a **different** variable, so the outer `x` is still **1**.',
             ],
             [
                 'language' => 'javascript',
@@ -266,7 +319,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['console.log([10, 9, 1].sort())']),
                 'options' => ['[ 1, 9, 10 ]', '[ 1, 10, 9 ]', '[ 10, 9, 1 ]', '[ 9, 10, 1 ]'],
                 'correct_option' => 1,
-                'explanation' => 'By default, sort compares items as text. As text, 1 comes before 10, and 10 comes before 9. So the result is 1, 10, 9.',
+                'explanation' => 'By default, `sort` compares items as **text**.
+As text, 1 comes before 10, and 10 comes before 9.
+So the result is **1, 10, 9**.',
             ],
             [
                 'language' => 'php',
@@ -275,7 +330,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['echo "10" + 5;']),
                 'options' => ['105', '15', '10 5', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'In PHP, plus is only for numbers. The text "10" is converted to the number 10, so the result is 15.',
+                'explanation' => 'In PHP, `+` is only for numbers.
+The text `"10"` is converted to the number 10, so the result is **15**.',
             ],
             [
                 'language' => 'php',
@@ -284,7 +340,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['$a = [3, 1, 2];', 'sort($a);', 'echo implode(",", $a);']),
                 'options' => ['3,1,2', '1,2,3', '1,3,2', '3,2,1'],
                 'correct_option' => 1,
-                'explanation' => 'sort puts the array in ascending order, giving 1, 2, 3. Then implode joins the items with commas.',
+                'explanation' => '- `sort` puts the array in ascending order: **1, 2, 3**
+- `implode` joins the items with commas',
             ],
             [
                 'language' => 'php',
@@ -293,7 +350,9 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['echo str_repeat("ab", 2) . strtoupper("c");']),
                 'options' => ['ababC', 'ABABC', 'abab C', 'ababc'],
                 'correct_option' => 0,
-                'explanation' => 'str_repeat gives "abab". strtoupper turns "c" into "C". The dot joins both pieces, so the output is ababC.',
+                'explanation' => '- `str_repeat` gives **"abab"**
+- `strtoupper` turns `"c"` into **"C"**
+- The `.` joins both pieces: **ababC**',
             ],
             [
                 'language' => 'php',
@@ -302,7 +361,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['var_dump(0 == "a");']),
                 'options' => ['bool(true)', 'bool(false)', 'int(0)', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'Since PHP 8, comparing a number with a non numeric string treats the number as text. "0" is not equal to "a", so it is false.',
+                'explanation' => 'Since **PHP 8**, comparing a number with a non numeric string treats the number as text.
+`"0"` is not equal to `"a"`, so it is **false**.',
             ],
             [
                 'language' => 'php',
@@ -311,7 +371,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['$x = null;', 'echo $x ?? "default";']),
                 'options' => ['null', 'default', '0', 'Error'],
                 'correct_option' => 1,
-                'explanation' => 'The double question mark returns the left side if it exists and is not null. Here x is null, so it returns the text default.',
+                'explanation' => 'The `??` operator returns the left side if it exists and is *not null*.
+Here `x` is null, so it returns the text **default**.',
             ],
             [
                 'language' => 'php',
@@ -320,7 +381,8 @@ class QuestionSeeder extends Seeder
                 'code' => implode("\n", ['echo intdiv(7, 2) . " " . 7 % 2;']),
                 'options' => ['3.5 1', '3 1', '4 1', '3 0'],
                 'correct_option' => 1,
-                'explanation' => 'intdiv divides and drops the decimal part, so 7 and 2 give 3. The percent sign gives the remainder, which is 1.',
+                'explanation' => '- `intdiv` divides and drops the decimal part: 7 and 2 give **3**
+- `%` gives the remainder: **1**',
             ],
         ];
     }

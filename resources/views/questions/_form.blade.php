@@ -100,7 +100,7 @@
     </fieldset>
 
     <div>
-        <label for="explanation" class="label">Explanation (read aloud after the answer)</label>
+        <label for="explanation" class="label">Explanation (shown on screen, not spoken. Markdown works: **bold**, *italic*, `code`, - lists)</label>
         <textarea id="explanation" name="explanation" rows="4" required maxlength="1500" class="field">{{ old('explanation', $question->explanation) }}</textarea>
         @error('explanation') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
     </div>

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from . import effects, markdown
 from .languages import Language, get_language, token_pattern
 from .themes import CODE_COLORS, Color, Theme
 
@@ -18,6 +19,9 @@ CONTENT_WIDTH = WIDTH - 2 * MARGIN
 OPTION_HEIGHT = 120
 OPTION_GAP = 22
 OPTIONS_TOP = 1050
+PROMPT_HEIGHT = 120
+MASCOT_HEIGHT = 170
+MASCOT_CENTER_Y = 1818
 TIMER_BAR_TOP = 995
 
 FONT_FILES = {
@@ -25,6 +29,8 @@ FONT_FILES = {
     "regular": ["segoeui.ttf", "arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"],
     "mono": ["consola.ttf", "cour.ttf", "DejaVuSansMono.ttf", "LiberationMono-Regular.ttf"],
     "monobold": ["consolab.ttf", "courbd.ttf", "DejaVuSansMono-Bold.ttf", "LiberationMono-Bold.ttf"],
+    "italic": ["segoeuii.ttf", "ariali.ttf", "DejaVuSans-Oblique.ttf", "LiberationSans-Italic.ttf"],
+    "bolditalic": ["segoeuiz.ttf", "arialbi.ttf", "DejaVuSans-BoldOblique.ttf", "LiberationSans-BoldItalic.ttf"],
 }
 
 _font_cache: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -84,6 +90,117 @@ def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[l
 
 
 @dataclass
+class Piece:
+    """One drawn word or symbol: text, style, x offset, and the line it sits on."""
+
+    text: str
+    style: str
+    x: int
+    width: int
+
+
+@dataclass
+class RichLine:
+    pieces: list[Piece]
+    y: int
+
+
+@dataclass
+class RichLayout:
+    size: int
+    line_height: int
+    lines: list[RichLine]
+    height: int
+    fits: bool
+
+
+CODE_PADDING = 10
+
+
+def rich_font(style: str, size: int) -> ImageFont.FreeTypeFont:
+    if style in ("code", "codeblock"):
+        return load_font("mono", int(size * 0.88))
+    if style == "marker":
+        return load_font("bold", size)
+    return load_font(style, size)
+
+
+def layout_rich(text: str, width: int, max_height: int) -> RichLayout:
+    """Lay out Markdown text, using the biggest font size that fits max_height."""
+    blocks = markdown.parse(text)
+    layout = None
+    for size in range(50, 27, -2):
+        layout = _layout_rich_at(blocks, width, size)
+        layout.fits = layout.fits and layout.height <= max_height
+        if layout.fits:
+            break
+    return layout  # type: ignore[return-value]
+
+
+def _layout_rich_at(blocks: list[markdown.Block], width: int, size: int) -> RichLayout:
+    line_height = int(size * 1.45)
+    space = load_font("regular", size).getlength(" ")
+    lines: list[RichLine] = []
+    fits = True
+    y = 0
+
+    for block in blocks:
+        if block.kind == "blank":
+            y += line_height // 2
+            continue
+
+        if block.kind == "code":
+            font = rich_font("codeblock", size)
+            text = block.tokens[0].text
+            piece_width = int(font.getlength(text))
+            fits = fits and piece_width <= width - 2 * CODE_PADDING
+            lines.append(RichLine([Piece(text, "codeblock", CODE_PADDING, piece_width)], y))
+            y += line_height
+            continue
+
+        indent = int(size * 1.15) if block.kind == "bullet" else 0
+        available = width - indent
+        line = RichLine([], y)
+        if block.marker:
+            line.pieces.append(Piece(block.marker, "marker", 0, int(rich_font("marker", size).getlength(block.marker))))
+        cursor = 0.0
+
+        for token in _split_wide_code(block.tokens, available, size):
+            is_code = token.style == markdown.CODE
+            font = rich_font(token.style, size)
+            token_width = int(font.getlength(token.text)) + (2 * CODE_PADDING if is_code else 0)
+            gap = space if token.space_before and cursor > 0 else 0
+
+            if cursor > 0 and cursor + gap + token_width > available:
+                lines.append(line)
+                y += line_height
+                line = RichLine([], y)
+                cursor, gap = 0.0, 0
+
+            x = indent + int(cursor + gap)
+            line.pieces.append(Piece(token.text, token.style, x, token_width))
+            cursor += gap + token_width
+
+        lines.append(line)
+        y += line_height
+
+    return RichLayout(size, line_height, lines, y, fits)
+
+
+def _split_wide_code(tokens: list[markdown.Token], available: int, size: int) -> list[markdown.Token]:
+    """An inline code span wider than the line is broken at its spaces."""
+    result: list[markdown.Token] = []
+    font = rich_font(markdown.CODE, size)
+    for token in tokens:
+        if token.style == markdown.CODE and font.getlength(token.text) + 2 * CODE_PADDING > available:
+            for index, word in enumerate(token.text.split()):
+                result.append(markdown.Token(word, markdown.CODE, token.space_before if index == 0 else True))
+        else:
+            result.append(token)
+    return result
+
+
+@dataclass
 class CodeLayout:
     font: ImageFont.FreeTypeFont
     line_height: int
@@ -138,8 +255,22 @@ def layout_code(code: str, max_height: int, language: Language) -> CodeLayout:
 class FrameBuilder:
     """Draws frames for one question using one theme."""
 
-    def __init__(self, theme: Theme, question: dict, channel_name: str | None, think_seconds: int) -> None:
+    def __init__(
+        self,
+        theme: Theme,
+        question: dict,
+        channel_name: str | None,
+        think_seconds: int,
+        comment_prompt: bool = True,
+        hook_text: str | None = None,
+        mascot: bool = True,
+        reveal_effects: bool = True,
+    ) -> None:
         self.theme = theme
+        self.comment_prompt = comment_prompt
+        self.hook_text = hook_text
+        self.mascot = mascot
+        self.reveal_effects = reveal_effects
         self.question = question
         self.channel_name = (channel_name or "").strip()
         self.think_seconds = think_seconds
@@ -266,7 +397,7 @@ class FrameBuilder:
             y += layout.line_height
         return bottom
 
-    def _options(self, image: Image.Image, draw: ImageDraw.ImageDraw, top: int, reveal: bool) -> None:
+    def _options(self, image: Image.Image, draw: ImageDraw.ImageDraw, top: int, reveal: bool, pop: float = 0.0) -> None:
         theme = self.theme
         letter_font = load_font("bold", 42)
         for index, option in enumerate(self.options):
@@ -284,7 +415,8 @@ class FrameBuilder:
                 fill, text_color = theme.card, theme.text
                 badge_color, letter_color = theme.accent, (255, 255, 255)
 
-            rounded_box(image, (MARGIN, y, WIDTH - MARGIN, y + OPTION_HEIGHT), 40, fill)
+            grow = int(12 * pop) if reveal and is_correct else 0
+            rounded_box(image, (MARGIN - grow, y - grow // 2, WIDTH - MARGIN + grow, y + OPTION_HEIGHT + grow // 2), 40, fill)
 
             center_y = y + OPTION_HEIGHT // 2
             draw.ellipse((MARGIN + 28, center_y - 38, MARGIN + 104, center_y + 38), fill=badge_color)
@@ -302,9 +434,74 @@ class FrameBuilder:
             width = max(18, int(CONTENT_WIDTH * fraction))
             rounded_box(image, (MARGIN, TIMER_BAR_TOP, MARGIN + width, TIMER_BAR_TOP + 18), 9, color)
 
+    def _prompt_top(self) -> int:
+        """Where the hook and comment boxes go: the free space under the code, or below the options."""
+        code_bottom = 470 + self.code_quiz.card_height if self.code_quiz else 250 + len(self.question_lines) * 70
+        gap = TIMER_BAR_TOP - code_bottom
+        if gap >= PROMPT_HEIGHT + 60:
+            return code_bottom + (gap - PROMPT_HEIGHT) // 2
+        return OPTIONS_TOP + 4 * (OPTION_HEIGHT + OPTION_GAP) - OPTION_GAP + 8
+
+    def _hook_banner(self, image: Image.Image, draw: ImageDraw.ImageDraw, appear: float) -> None:
+        """The attention line at the start. `appear` goes 0 to 1 as it pops in."""
+        scale = max(0.55, effects.ease_out_back(appear))
+        top = self._prompt_top()
+        center_y = top + PROMPT_HEIGHT // 2
+        half_width = int(CONTENT_WIDTH / 2 * scale)
+        half_height = int(PROMPT_HEIGHT / 2 * scale)
+        left = WIDTH // 2 - half_width
+
+        rounded_box(image, (left, center_y - half_height, WIDTH // 2 + half_width, center_y + half_height), 44, self.theme.accent)
+
+        size = 54
+        while size > 28 and load_font("bold", size).getlength(self.hook_text) > CONTENT_WIDTH - 70:
+            size -= 2
+        draw.text((WIDTH // 2, center_y - 2), self.hook_text, font=load_font("bold", int(size * scale)), fill=(255, 255, 255), anchor="mm")
+
+    def _mascot(self, image: Image.Image, draw: ImageDraw.ImageDraw, expression: str, bubble: str, phase: float) -> None:
+        """The robot buddy in the bottom corner with a speech bubble."""
+        if not self.mascot:
+            return
+
+        robot = effects.mascot_image(expression, self.theme, MASCOT_HEIGHT)
+        bounce = int(math.sin(phase * 7) * 7)
+        left = WIDTH - MARGIN - robot.width + 20
+        top = MASCOT_CENTER_Y - robot.height // 2 + bounce
+        image.paste(robot, (left, top), robot)
+
+        font = load_font("bold", 38)
+        bubble_width = int(font.getlength(bubble)) + 60
+        right = left - 8
+        box = (right - bubble_width, MASCOT_CENTER_Y - 50, right, MASCOT_CENTER_Y + 30)
+        rounded_box(image, box, 40, (255, 255, 255))
+        draw.polygon([(right - 2, MASCOT_CENTER_Y - 18), (right + 22, MASCOT_CENTER_Y + 8), (right - 2, MASCOT_CENTER_Y + 14)], fill=(255, 255, 255))
+        draw.text(((box[0] + box[2]) // 2, MASCOT_CENTER_Y - 10), bubble, font=font, fill=self.theme.code_card, anchor="mm")
+
+    def _comment_box(self, image: Image.Image, draw: ImageDraw.ImageDraw, pulse: float, hurry: bool) -> None:
+        """A pulsing 'pause and comment your answer' prompt shown while the timer runs."""
+        if not self.comment_prompt:
+            return
+
+        theme = self.theme
+        height = PROMPT_HEIGHT
+        top = self._prompt_top()
+
+        color = theme.danger if hurry else theme.accent
+        rounded_box(image, (MARGIN, top, WIDTH - MARGIN, top + height), 40, color, alpha=0.2 + 0.14 * pulse)
+
+        center_x, center_y = MARGIN + 66, top + height // 2
+        draw.ellipse((center_x - 40, center_y - 40, center_x + 40, center_y + 40), fill=color)
+        for offset in (-13, 5):
+            draw.rounded_rectangle((center_x + offset, center_y - 16, center_x + offset + 8, center_y + 16), 3, fill=(255, 255, 255))
+
+        headline = "Hurry! Comment A, B, C or D" if hurry else "Pause & comment your answer"
+        subline = "Time is almost up..." if hurry else "A, B, C or D - before the timer ends!"
+        draw.text((MARGIN + 130, center_y - 20), headline, font=load_font("bold", 42), fill=theme.text, anchor="lm")
+        draw.text((MARGIN + 130, center_y + 26), subline, font=load_font("regular", 29), fill=theme.muted, anchor="lm")
+
     # ----------------------------------------------------------------- scenes
 
-    def question_scene(self) -> Image.Image:
+    def question_scene(self, elapsed: float = 99.0) -> Image.Image:
         image, draw = self._new_frame()
         self._header(image, draw)
         self._ring(image, draw, 1.0, str(self.think_seconds), self.theme.accent)
@@ -312,7 +509,12 @@ class FrameBuilder:
         if self.code_quiz:
             self._code_card(image, draw, self.code_quiz, 470)
         self._timer_bar(image, self.think_seconds)
+        if self.hook_text:
+            self._hook_banner(image, draw, min(1.0, elapsed / 0.35))
+        else:
+            self._comment_box(image, draw, 0.0, hurry=False)
         self._options(image, draw, OPTIONS_TOP, reveal=False)
+        self._mascot(image, draw, "smile", "Ready?", elapsed)
         return image
 
     def think_scene(self, remaining: float) -> Image.Image:
@@ -324,17 +526,28 @@ class FrameBuilder:
         if self.code_quiz:
             self._code_card(image, draw, self.code_quiz, 470)
         self._timer_bar(image, remaining)
+        pulse = 0.5 + 0.5 * math.sin(remaining * math.tau * 1.2)
+        hurry = remaining <= 3
+        self._comment_box(image, draw, pulse, hurry=hurry)
         self._options(image, draw, OPTIONS_TOP, reveal=False)
+        self._mascot(image, draw, "hurry" if hurry else "think", "Tick tock!" if hurry else "Hmm... which one?", remaining)
         return image
 
-    def reveal_scene(self) -> Image.Image:
+    def reveal_scene(self, elapsed: float = 99.0) -> Image.Image:
+        """`elapsed` is seconds since the answer appeared; it drives the pop and the confetti."""
         image, draw = self._new_frame()
         self._header(image, draw)
         self._check_badge(image, draw)
         self._question_text(draw)
         if self.code_quiz:
             self._code_card(image, draw, self.code_quiz, 470)
-        self._options(image, draw, OPTIONS_TOP, reveal=True)
+
+        pop = effects.ease_out_back(elapsed / 0.4) if self.reveal_effects else 0.0
+        self._options(image, draw, OPTIONS_TOP, reveal=True, pop=pop)
+        if self.reveal_effects:
+            center_y = OPTIONS_TOP + self.correct * (OPTION_HEIGHT + OPTION_GAP) + OPTION_HEIGHT // 2
+            effects.draw_confetti(draw, elapsed, (WIDTH // 2, center_y))
+        self._mascot(image, draw, "happy", "Did you get it?", elapsed)
         return image
 
     def explain_scene(self, progress: float) -> Image.Image:
@@ -356,12 +569,12 @@ class FrameBuilder:
         y += 96 + 34
 
         text_width = CONTENT_WIDTH - 88
-        font, lines, line_height = self._fit_text(self.explanation_words, text_width, HEIGHT - 300 - y - 140)
-        card_bottom = y + 100 + len(lines) * line_height + 40
+        layout = self._explanation_layout(text_width, HEIGHT - 300 - y - 140)
+        card_bottom = y + 100 + layout.height + 40
         rounded_box(image, (MARGIN, y, WIDTH - MARGIN, card_bottom), 36, theme.card)
         draw.text((MARGIN + 44, y + 40), "WHY?", font=load_font("bold", 34), fill=theme.accent)
 
-        self._draw_revealed(draw, font, lines, line_height, (MARGIN + 44, y + 100), progress)
+        self._draw_rich(image, draw, layout, (MARGIN + 44, y + 100), progress)
         return image
 
     def outro_scene(self) -> Image.Image:
@@ -377,40 +590,50 @@ class FrameBuilder:
             draw.text((WIDTH // 2, 1090), f"Next up: {next_label}", font=load_font("bold", 50), fill=theme.text, anchor="mm")
         if self.channel_name:
             draw.text((WIDTH // 2, 1200 if next_label else 1090), self.channel_name, font=load_font("bold", 44), fill=theme.muted if next_label else theme.text, anchor="mm")
+        self._mascot(image, draw, "happy", "See you next time!", 0.0)
         return image
 
-    def _fit_text(self, text: str, width: int, max_height: int) -> tuple[ImageFont.FreeTypeFont, list[list[str]], int]:
-        """Pick the biggest font size whose wrapped text fits in max_height."""
-        key = (text, width, max_height)
+    def _explanation_layout(self, width: int, max_height: int) -> RichLayout:
+        key = (width, max_height)
         if key not in self._text_cache:
-            for size in range(50, 29, -2):
-                font = load_font("regular", size)
-                lines = wrap_text(text, font, width)
-                line_height = int(size * 1.45)
-                if len(lines) * line_height <= max_height:
-                    break
-            self._text_cache[key] = (font, lines, line_height)
+            self._text_cache[key] = layout_rich(self.explanation_words, width, max_height)
         return self._text_cache[key]
 
-    def _draw_revealed(
+    def _draw_rich(
         self,
+        image: Image.Image,
         draw: ImageDraw.ImageDraw,
-        font: ImageFont.FreeTypeFont,
-        lines: list[list[str]],
-        line_height: int,
+        layout: RichLayout,
         origin: tuple[int, int],
         progress: float,
     ) -> None:
-        """Show wrapped text word by word as `progress` grows from 0 to 1."""
-        total_characters = sum(len(word) + 1 for line in lines for word in line) or 1
+        """Draw the Markdown layout, revealing it word by word as `progress` goes from 0 to 1."""
+        theme = self.theme
+        total_characters = sum(len(piece.text) + 1 for line in layout.lines for piece in line.pieces) or 1
         visible_characters = progress * total_characters
+        size = layout.size
+        block_width = CONTENT_WIDTH - 88
+        ascent = rich_font("regular", size).getmetrics()[0]
 
         seen = 0
-        for index, words in enumerate(lines):
-            x = origin[0]
-            y = origin[1] + index * line_height
-            for word in words:
-                if seen < visible_characters:
-                    draw.text((x, y), word, font=font, fill=self.theme.text)
-                x += font.getlength(word + " ")
-                seen += len(word) + 1
+        for line in layout.lines:
+            y = origin[1] + line.y
+            baseline = y + ascent
+            for piece in line.pieces:
+                shown = seen < visible_characters
+                seen += len(piece.text) + 1
+                if not shown:
+                    continue
+
+                x = origin[0] + piece.x
+                font = rich_font(piece.style, size)
+                if piece.style == "codeblock":
+                    rounded_box(image, (origin[0], baseline - int(size * 1.0), origin[0] + block_width, baseline + int(size * 0.42)), 12, theme.code_card)
+                    draw.text((x, baseline), piece.text, font=font, fill=CODE_COLORS["default"], anchor="ls")
+                elif piece.style == "code":
+                    rounded_box(image, (x, baseline - int(size * 0.98), x + piece.width, baseline + int(size * 0.3)), 10, theme.code_card)
+                    draw.text((x + CODE_PADDING, baseline), piece.text, font=font, fill=CODE_COLORS["default"], anchor="ls")
+                elif piece.style == "marker":
+                    draw.text((x, baseline), piece.text, font=font, fill=theme.accent, anchor="ls")
+                else:
+                    draw.text((x, baseline), piece.text, font=font, fill=theme.text, anchor="ls")

@@ -24,6 +24,17 @@
                 @error('voice') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
+            <div>
+                <label for="answer_voice" class="label">Answer voice (says "Correct answer is option B" when time is up)</label>
+                <select id="answer_voice" name="answer_voice" class="field max-w-xs">
+                    <option value="">Same as the voice above</option>
+                    @foreach ($voices as $value => $label)
+                        <option value="{{ $value }}" @selected(old('answer_voice', $setting->answer_voice) === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @error('answer_voice') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
+
             @foreach ([
                 ['speech_rate', 'Speed', -50, 100, '%'],
                 ['speech_pitch', 'Pitch', -50, 50, ' Hz'],
@@ -43,12 +54,37 @@
                 <label class="flex items-center gap-3 text-sm">
                     <input type="checkbox" name="narrate_question" value="1" class="size-4 accent-indigo-600"
                            @checked(old('narrate_question', $setting->narrate_question))>
-                    Read the question and options aloud
+                    Say the question aloud (options are shown, not spoken)
                 </label>
                 <label class="flex items-center gap-3 text-sm">
                     <input type="checkbox" name="narrate_explanation" value="1" class="size-4 accent-indigo-600"
                            @checked(old('narrate_explanation', $setting->narrate_explanation))>
-                    Read the correct answer and explanation aloud
+                    Say "Correct answer is option B" aloud (the explanation is shown, not spoken)
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="hook_line" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('hook_line', $setting->hook_line))>
+                    Start with a hook line ("99% get this wrong!"), shown and spoken
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="mascot" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('mascot', $setting->mascot))>
+                    Show the robot buddy with its speech bubble
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="reveal_effects" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('reveal_effects', $setting->reveal_effects))>
+                    Pop the right answer with confetti
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="sound_effects" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('sound_effects', $setting->sound_effects))>
+                    Sound effects (whoosh, drum roll, time-up buzzer, pop)
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="comment_prompt" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('comment_prompt', $setting->comment_prompt))>
+                    Show the "Pause &amp; comment your answer" box while the timer runs
                 </label>
                 <label class="flex items-center gap-3 text-sm">
                     <input type="checkbox" name="tick_sound" value="1" class="size-4 accent-indigo-600"

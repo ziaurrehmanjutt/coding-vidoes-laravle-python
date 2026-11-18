@@ -29,6 +29,55 @@ def ding() -> np.ndarray:
     return ((first + second) * _envelope(length, 5) * 0.35).astype(np.float32)
 
 
+def _chirp(seconds: float, start_hz: float, end_hz: float) -> np.ndarray:
+    length = int(SAMPLE_RATE * seconds)
+    t = np.arange(length, dtype=np.float32) / SAMPLE_RATE
+    phase = 2 * np.pi * (start_hz * t + (end_hz - start_hz) * t * t / (2 * seconds))
+    return np.sin(phase).astype(np.float32)
+
+
+def whoosh() -> np.ndarray:
+    """A quick rising swoosh for the start of the video."""
+    seconds = 0.4
+    length = int(SAMPLE_RATE * seconds)
+    bell = np.sin(np.linspace(0, np.pi, length, dtype=np.float32)) ** 2
+    noise = np.random.default_rng(3).uniform(-1, 1, length).astype(np.float32)
+    return ((_chirp(seconds, 250, 1800) * 0.5 + noise * 0.35) * bell * 0.45).astype(np.float32)
+
+
+def drumroll(seconds: float = 3.0) -> np.ndarray:
+    """Hits that get faster and louder, building up to the answer."""
+    length = int(SAMPLE_RATE * (seconds + 0.1))
+    track = np.zeros(length, dtype=np.float32)
+    rng = np.random.default_rng(5)
+    hit_length = int(SAMPLE_RATE * 0.05)
+    t = np.arange(hit_length, dtype=np.float32) / SAMPLE_RATE
+    hit = (rng.uniform(-1, 1, hit_length) * 0.6 + np.sin(2 * np.pi * 170 * t)) * _envelope(hit_length, 7)
+
+    moment = 0.0
+    while moment < seconds:
+        progress = moment / seconds
+        start = int(moment * SAMPLE_RATE)
+        end = min(length, start + hit_length)
+        track[start:end] += hit[: end - start].astype(np.float32) * (0.25 + 0.6 * progress)
+        moment += 0.16 - 0.12 * progress
+    return track
+
+
+def buzzer() -> np.ndarray:
+    """A short falling 'time is up' sound."""
+    seconds = 0.4
+    length = int(SAMPLE_RATE * seconds)
+    return (_chirp(seconds, 520, 170) * _envelope(length, 3) * 0.35).astype(np.float32)
+
+
+def pop() -> np.ndarray:
+    """The confetti pop."""
+    length = int(SAMPLE_RATE * 0.18)
+    noise = np.random.default_rng(9).uniform(-1, 1, length).astype(np.float32)
+    return ((noise * 0.6 + _chirp(0.18, 700, 220)) * _envelope(length, 9) * 0.5).astype(np.float32)
+
+
 def silence(seconds: float) -> np.ndarray:
     return np.zeros(int(round(seconds * SAMPLE_RATE)), dtype=np.float32)
 

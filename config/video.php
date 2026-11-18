@@ -49,6 +49,12 @@ return [
         'theme' => 'midnight',
         'quality' => 'high',
         'channel_name' => 'Python Daily',
+        'answer_voice' => 'en-US-GuyNeural',
+        'comment_prompt' => true,
+        'hook_line' => true,
+        'mascot' => true,
+        'reveal_effects' => true,
+        'sound_effects' => true,
     ],
 
     'voices' => [

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Question;
 use App\Models\VideoSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -103,4 +104,67 @@ it('reports when the voice service is unavailable', function () {
     $this->postJson(route('settings.preview'), validSettingData())
         ->assertStatus(502)
         ->assertJson(['message' => 'The voice preview is not available right now.']);
+});
+
+it('saves a separate answer voice and the comment prompt option', function () {
+    $this->put(route('settings.update'), validSettingData(['answer_voice' => 'en-US-GuyNeural', 'comment_prompt' => '1']))
+        ->assertSessionHasNoErrors();
+
+    expect(VideoSetting::sole())
+        ->answer_voice->toBe('en-US-GuyNeural')
+        ->comment_prompt->toBeTrue();
+
+    $this->put(route('settings.update'), validSettingData(['answer_voice' => '']));
+
+    expect(VideoSetting::sole())
+        ->answer_voice->toBeNull()
+        ->comment_prompt->toBeFalse();
+});
+
+it('rejects an unknown answer voice', function () {
+    $this->put(route('settings.update'), validSettingData(['answer_voice' => 'nobody']))
+        ->assertSessionHasErrors('answer_voice');
+});
+
+it('sends the answer voice and comment prompt to Python when a video is created', function () {
+    Http::preventStrayRequests();
+    Http::fake(['*/render' => Http::response(['accepted' => true], 202)]);
+
+    VideoSetting::current()->update(['answer_voice' => 'en-GB-RyanNeural', 'comment_prompt' => false]);
+
+    $this->post(route('questions.videos.store', Question::factory()->create()));
+
+    Http::assertSent(fn ($request) => $request['settings']['answer_voice'] === 'en-GB-RyanNeural'
+        && $request['settings']['comment_prompt'] === false);
+});
+
+it('saves the playful options and turns them off when unticked', function () {
+    $options = ['hook_line', 'mascot', 'reveal_effects', 'sound_effects'];
+
+    $this->put(route('settings.update'), validSettingData(array_fill_keys($options, '1')))
+        ->assertSessionHasNoErrors();
+
+    foreach ($options as $option) {
+        expect(VideoSetting::sole()->{$option})->toBeTrue();
+    }
+
+    $this->put(route('settings.update'), validSettingData());
+
+    foreach ($options as $option) {
+        expect(VideoSetting::sole()->{$option})->toBeFalse();
+    }
+});
+
+it('sends the playful options to Python when a video is created', function () {
+    Http::preventStrayRequests();
+    Http::fake(['*/render' => Http::response(['accepted' => true], 202)]);
+
+    VideoSetting::current()->update(['hook_line' => false, 'mascot' => true]);
+
+    $this->post(route('questions.videos.store', Question::factory()->create()));
+
+    Http::assertSent(fn ($request) => $request['settings']['hook_line'] === false
+        && $request['settings']['mascot'] === true
+        && $request['settings']['reveal_effects'] === true
+        && $request['settings']['sound_effects'] === true);
 });
