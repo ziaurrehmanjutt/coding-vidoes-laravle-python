@@ -258,3 +258,23 @@ it('upgrades a plain explanation but keeps one that already uses Markdown', func
     expect($plain->refresh()->explanation)->toMatch('/\*\*|`/')
         ->and($formatted->refresh()->explanation)->toBe('My own **notes**.');
 });
+
+it('saves a custom hook and sends it to Python', function () {
+    Http::preventStrayRequests();
+    Http::fake(['*/render' => Http::response(['accepted' => true], 202)]);
+
+    $this->post(route('questions.store'), validQuestionData(['hook' => 'What does "Python" * 3 print?']));
+
+    $question = Question::sole();
+
+    expect($question->hook)->toBe('What does "Python" * 3 print?');
+
+    $this->post(route('questions.videos.store', $question));
+
+    Http::assertSent(fn ($request) => $request['question']['hook'] === 'What does "Python" * 3 print?');
+});
+
+it('rejects a hook that is too long', function () {
+    $this->post(route('questions.store'), validQuestionData(['hook' => str_repeat('a', 71)]))
+        ->assertSessionHasErrors('hook');
+});

@@ -39,13 +39,13 @@ return [
 
     'defaults' => [
         'voice' => 'en-US-AriaNeural',
-        'speech_rate' => 0,
+        'speech_rate' => 10,
         'speech_pitch' => 0,
         'speech_volume' => 0,
         'narrate_question' => true,
         'narrate_explanation' => true,
         'tick_sound' => true,
-        'think_seconds' => 8,
+        'think_seconds' => 5,
         'theme' => 'midnight',
         'quality' => 'high',
         'channel_name' => 'Python Daily',

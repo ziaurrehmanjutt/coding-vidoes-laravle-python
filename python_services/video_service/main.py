@@ -44,6 +44,7 @@ class VoicePreviewRequest(BaseModel):
 class QuestionPayload(BaseModel):
     title: str = ""
     language: str = "python"
+    hook: str | None = None
     series_label: str | None = None
     next_series_label: str | None = None
     question_text: str

@@ -105,6 +105,13 @@
         @error('explanation') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
     </div>
 
+    <div>
+        <label for="hook" class="label">Hook (the first line viewers see and hear)</label>
+        <input id="hook" name="hook" type="text" maxlength="70" class="field"
+               value="{{ old('hook', $question->hook) }}" placeholder="Empty = pick one automatically, e.g. What does &quot;Python&quot; * 3 print?">
+        @error('hook') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+    </div>
+
     <div class="max-w-xs">
         <label for="think_seconds" class="label">Thinking time (seconds)</label>
         <input id="think_seconds" name="think_seconds" type="number" min="3" max="30" class="field"

@@ -68,6 +68,7 @@ class StoreQuestionRequest extends FormRequest
             'think_seconds' => ['nullable', 'integer', 'between:3,30'],
             'is_uploaded' => ['boolean'],
             'upload_url' => ['nullable', 'url', 'max:300'],
+            'hook' => ['nullable', 'string', 'max:70'],
             'upload_title' => ['nullable', 'string', 'max:100'],
             'upload_description' => ['nullable', 'string', 'max:5000'],
             'hashtags' => ['nullable', 'array', 'max:15'],

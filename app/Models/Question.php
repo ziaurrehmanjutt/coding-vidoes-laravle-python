@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable([
     'title',
     'language',
+    'hook',
     'category_id',
     'series',
     'series_number',

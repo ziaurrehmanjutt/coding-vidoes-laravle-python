@@ -47,6 +47,7 @@ class PythonVideoService
                 'question' => [
                     'title' => $question->title,
                     'language' => $question->language,
+                    'hook' => $question->hook,
                     'series_label' => $question->seriesLabel(),
                     'next_series_label' => $question->nextSeriesLabel(),
                     'question_text' => $question->question_text,

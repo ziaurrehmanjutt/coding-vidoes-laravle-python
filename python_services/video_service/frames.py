@@ -20,6 +20,7 @@ OPTION_HEIGHT = 120
 OPTION_GAP = 22
 OPTIONS_TOP = 1050
 PROMPT_HEIGHT = 120
+HOOK_SECONDS = 2.6
 MASCOT_HEIGHT = 170
 MASCOT_CENTER_Y = 1818
 TIMER_BAR_TOP = 995
@@ -517,7 +518,7 @@ class FrameBuilder:
         self._mascot(image, draw, "smile", "Ready?", elapsed)
         return image
 
-    def think_scene(self, remaining: float) -> Image.Image:
+    def think_scene(self, remaining: float, elapsed: float = 99.0) -> Image.Image:
         image, draw = self._new_frame()
         self._header(image, draw)
         color = self.theme.accent if remaining > 5 else self.theme.warning if remaining > 2.5 else self.theme.danger
@@ -528,9 +529,17 @@ class FrameBuilder:
         self._timer_bar(image, remaining)
         pulse = 0.5 + 0.5 * math.sin(remaining * math.tau * 1.2)
         hurry = remaining <= 3
-        self._comment_box(image, draw, pulse, hurry=hurry)
+        showing_hook = bool(self.hook_text) and elapsed < HOOK_SECONDS
+        if showing_hook:
+            self._hook_banner(image, draw, min(1.0, elapsed / 0.35))
+        else:
+            self._comment_box(image, draw, pulse, hurry=hurry)
         self._options(image, draw, OPTIONS_TOP, reveal=False)
-        self._mascot(image, draw, "hurry" if hurry else "think", "Tick tock!" if hurry else "Hmm... which one?", remaining)
+        if showing_hook:
+            expression, bubble = "smile", "Ready? Go!"
+        else:
+            expression, bubble = ("hurry", "Tick tock!") if hurry else ("think", "Hmm... which one?")
+        self._mascot(image, draw, expression, bubble, remaining)
         return image
 
     def reveal_scene(self, elapsed: float = 99.0) -> Image.Image:

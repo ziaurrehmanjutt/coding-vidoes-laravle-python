@@ -19,8 +19,10 @@ from .tts import VoiceSettings, speech_samples
 
 ProgressCallback = Callable[[int, str], None]
 
-OUTRO_SECONDS = 2.5
+OUTRO_SECONDS = 1.5
 REVEAL_DELAY = 0.3
+HOOK_SECONDS = 2.6
+START_DELAY = 0.3
 
 # Lower CRF = sharper picture and a bigger file. Slower presets compress better.
 QUALITY_PRESETS = {
@@ -41,7 +43,7 @@ def narration_script(question: dict, settings: dict) -> dict[str, str | None]:
     the voice asks the question, waits while the timer runs, then names the right letter.
     """
     letter = chr(65 + int(question["correct_option"]))
-    hook = f"{pick_hook(question, int(settings['think_seconds']))} " if settings.get("hook_line", True) else ""
+    hook = f"{pick_hook(question)} " if settings.get("hook_line", True) else ""
 
     return {
         "question": f"{hook}{question['question_text']} Choose the correct answer." if settings["narrate_question"] else None,
@@ -89,13 +91,18 @@ class Narration:
 
 
 def build_timeline(narration: Narration, settings: dict, question: dict) -> list[tuple[str, float]]:
+    """Think, reveal, explain, outro. The timer starts at once and the question is spoken while it runs."""
     explanation_words = len(plain_text(question["explanation"]).split())
-    reading_time = min(25.0, 2.0 + 0.33 * explanation_words)
+    reading_time = min(14.0, 1.5 + 0.3 * explanation_words)
+
+    spoken = narration.seconds("question")
+    think_seconds = float(settings["think_seconds"])
+    if spoken > 0:
+        think_seconds = max(think_seconds, START_DELAY + spoken + 3.0)
 
     return [
-        ("question", max(3.0, narration.seconds("question") + 0.8)),
-        ("think", float(settings["think_seconds"])),
-        ("reveal", max(2.5, narration.seconds("reveal") + 1.4)),
+        ("think", think_seconds),
+        ("reveal", max(2.5, narration.seconds("reveal") + 1.0)),
         ("explain", max(4.0, reading_time)),
         ("outro", OUTRO_SECONDS),
     ]
@@ -103,31 +110,30 @@ def build_timeline(narration: Narration, settings: dict, question: dict) -> list
 
 def build_audio(narration: Narration, timeline: list[tuple[str, float]], settings: dict, total_seconds: float) -> np.ndarray:
     track = np.zeros(int(round(total_seconds * audio.SAMPLE_RATE)), dtype=np.float32)
-
     effects = settings.get("sound_effects", True)
 
     start = 0.0
     for name, duration in timeline:
-        if name == "question":
+        if name == "think":
             if effects:
                 audio.mix_in(track, audio.whoosh(), start)
-            _place(track, narration.samples.get("question"), start + 0.3)
-        elif name == "think":
-            _place(track, narration.samples.get("think"), start + 0.15)
+            _place(track, narration.samples.get("question"), start + START_DELAY)
+
+            spoken_until = START_DELAY + narration.seconds("question")
             if settings["tick_sound"]:
                 for second in range(int(duration)):
+                    if second < spoken_until:
+                        continue
                     last_seconds = second >= int(duration) - 3
                     audio.mix_in(track, audio.tick(high=last_seconds), start + second, gain=0.8)
-            if effects and duration > 3.2:
+            if effects and duration - 3.0 >= spoken_until:
                 audio.mix_in(track, audio.drumroll(3.0), start + duration - 3.0, gain=0.55)
         elif name == "reveal":
             if effects:
                 audio.mix_in(track, audio.buzzer(), start, gain=0.9)
                 audio.mix_in(track, audio.pop(), start + REVEAL_DELAY, gain=0.8)
             audio.mix_in(track, audio.ding(), start + (REVEAL_DELAY if effects else 0.0), gain=1.0)
-            _place(track, narration.samples.get("reveal"), start + (0.75 if effects else 0.45))
-        elif name == "explain":
-            _place(track, narration.samples.get("explain"), start + 0.4)
+            _place(track, narration.samples.get("reveal"), start + (0.55 if effects else 0.35))
         start += duration
     return track
 
@@ -139,12 +145,9 @@ def _place(track: np.ndarray, samples: np.ndarray | None, start: float) -> None:
 
 def frame_for(builder: FrameBuilder, scene: str, elapsed: float, duration: float):
     """Return (cache key, draw function). Equal keys produce identical frames."""
-    if scene == "question":
-        step = min(int(elapsed * 30), 12)
-        return ("question", step), lambda: builder.question_scene(step / 30)
     if scene == "think":
         remaining = max(0.0, duration - int(elapsed * 10) / 10)
-        return ("think", int(remaining * 10)), lambda: builder.think_scene(remaining)
+        return ("think", int(remaining * 10)), lambda: builder.think_scene(remaining, duration - remaining)
     if scene == "reveal":
         step = min(max(0, int((elapsed - REVEAL_DELAY) * 24)), 48)
         return ("reveal", step), lambda: builder.reveal_scene(step / 24)
@@ -179,10 +182,11 @@ def render_video(question: dict, settings: dict, output_path: str, report: Progr
     total_frames = sum(frame_counts)
     total_seconds = total_frames / fps
 
+    think_duration = next(duration for name, duration in timeline if name == "think")
     builder = FrameBuilder(
-        get_theme(settings["theme"]), question, settings.get("channel_name"), int(settings["think_seconds"]),
+        get_theme(settings["theme"]), question, settings.get("channel_name"), think_duration,
         comment_prompt=bool(settings.get("comment_prompt", True)),
-        hook_text=pick_hook(question, int(settings["think_seconds"])) if settings.get("hook_line", True) else None,
+        hook_text=pick_hook(question) if settings.get("hook_line", True) else None,
         mascot=bool(settings.get("mascot", True)),
         reveal_effects=bool(settings.get("reveal_effects", True)),
     )
