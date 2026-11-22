@@ -14,6 +14,7 @@ from . import audio, config
 from .frames import HEIGHT, WIDTH, FrameBuilder
 from .hooks import pick_hook
 from .markdown import plain_text
+from .music import background
 from .themes import get_theme
 from .tts import VoiceSettings, speech_samples
 
@@ -23,6 +24,8 @@ OUTRO_SECONDS = 1.5
 REVEAL_DELAY = 0.3
 HOOK_SECONDS = 2.6
 START_DELAY = 0.3
+MUSIC_GAIN = 0.2
+MIN_TOTAL_SECONDS = 22.0
 
 # Lower CRF = sharper picture and a bigger file. Slower presets compress better.
 QUALITY_PRESETS = {
@@ -100,16 +103,26 @@ def build_timeline(narration: Narration, settings: dict, question: dict) -> list
     if spoken > 0:
         think_seconds = max(think_seconds, START_DELAY + spoken + 3.0)
 
+    reveal_seconds = max(2.5, narration.seconds("reveal") + 1.0)
+    explain_seconds = max(4.0, reading_time)
+
+    # Keep videos from being too short: spend the missing time on the explanation.
+    shortfall = MIN_TOTAL_SECONDS - (think_seconds + reveal_seconds + explain_seconds + OUTRO_SECONDS)
+    if shortfall > 0:
+        explain_seconds += min(shortfall, 8.0)
+
     return [
         ("think", think_seconds),
-        ("reveal", max(2.5, narration.seconds("reveal") + 1.0)),
-        ("explain", max(4.0, reading_time)),
+        ("reveal", reveal_seconds),
+        ("explain", explain_seconds),
         ("outro", OUTRO_SECONDS),
     ]
 
 
 def build_audio(narration: Narration, timeline: list[tuple[str, float]], settings: dict, total_seconds: float) -> np.ndarray:
-    track = np.zeros(int(round(total_seconds * audio.SAMPLE_RATE)), dtype=np.float32)
+    length = int(round(total_seconds * audio.SAMPLE_RATE))
+    track = np.zeros(length, dtype=np.float32)  # sound effects
+    voice = np.zeros(length, dtype=np.float32)  # speech, kept apart so the music can duck under it
     effects = settings.get("sound_effects", True)
 
     start = 0.0
@@ -117,7 +130,7 @@ def build_audio(narration: Narration, timeline: list[tuple[str, float]], setting
         if name == "think":
             if effects:
                 audio.mix_in(track, audio.whoosh(), start)
-            _place(track, narration.samples.get("question"), start + START_DELAY)
+            _place(voice, narration.samples.get("question"), start + START_DELAY)
 
             spoken_until = START_DELAY + narration.seconds("question")
             if settings["tick_sound"]:
@@ -133,9 +146,23 @@ def build_audio(narration: Narration, timeline: list[tuple[str, float]], setting
                 audio.mix_in(track, audio.buzzer(), start, gain=0.9)
                 audio.mix_in(track, audio.pop(), start + REVEAL_DELAY, gain=0.8)
             audio.mix_in(track, audio.ding(), start + (REVEAL_DELAY if effects else 0.0), gain=1.0)
-            _place(track, narration.samples.get("reveal"), start + (0.55 if effects else 0.35))
+            _place(voice, narration.samples.get("reveal"), start + (0.55 if effects else 0.35))
         start += duration
-    return track
+
+    mixed = track + voice
+    if settings.get("background_music", True):
+        mixed += music_under(voice, length)
+    return mixed
+
+
+def music_under(voice: np.ndarray, length: int) -> np.ndarray:
+    """The background loop, turned down while someone is speaking."""
+    window = int(0.15 * audio.SAMPLE_RATE)
+    padded = np.concatenate(([0.0], np.cumsum(np.abs(voice), dtype=np.float64)))
+    average = (padded[window:] - padded[:-window]) / window
+    envelope = np.concatenate((average, np.zeros(length - len(average)))) if len(average) < length else average[:length]
+    ducking = 1.0 - 0.7 * np.clip(envelope * 8.0, 0.0, 1.0)
+    return (background(length / audio.SAMPLE_RATE) * ducking * MUSIC_GAIN).astype(np.float32)
 
 
 def _place(track: np.ndarray, samples: np.ndarray | None, start: float) -> None:

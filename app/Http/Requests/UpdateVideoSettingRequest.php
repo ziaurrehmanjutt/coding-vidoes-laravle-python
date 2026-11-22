@@ -30,6 +30,7 @@ class UpdateVideoSettingRequest extends FormRequest
             'mascot' => $this->boolean('mascot'),
             'reveal_effects' => $this->boolean('reveal_effects'),
             'sound_effects' => $this->boolean('sound_effects'),
+            'background_music' => $this->boolean('background_music'),
             'answer_voice' => $this->input('answer_voice') ?: null,
         ]);
     }
@@ -54,6 +55,7 @@ class UpdateVideoSettingRequest extends FormRequest
             'mascot' => ['boolean'],
             'reveal_effects' => ['boolean'],
             'sound_effects' => ['boolean'],
+            'background_music' => ['boolean'],
             'answer_voice' => ['nullable', Rule::in(array_keys(config('video.voices')))],
             'think_seconds' => ['required', 'integer', 'between:3,30'],
             'theme' => ['required', Rule::in(array_keys(config('video.themes')))],

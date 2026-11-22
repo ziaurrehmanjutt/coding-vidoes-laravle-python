@@ -10,8 +10,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
-    <header class="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
             <a href="{{ route('questions.index') }}" class="text-lg font-bold tracking-tight">
                 Quiz Video Maker
             </a>
@@ -32,16 +32,31 @@
                        ])
                        @if (request()->routeIs($pattern)) aria-current="page" @endif>
                         {{ $label }}
+                        @if ($route === 'queue.index' && ($readyToUploadCount ?? 0) > 0)
+                            <span class="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">{{ $readyToUploadCount }}</span>
+                        @endif
                     </a>
                 @endforeach
             </nav>
         </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-4 py-8">
+    <main class="mx-auto max-w-6xl px-4 py-8">
         @if (session('status'))
             <div role="status" class="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
                 {{ session('status') }}
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div role="alert" class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if ($errors->has('ids'))
+            <div role="alert" class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                {{ $errors->first('ids') }}
             </div>
         @endif
 

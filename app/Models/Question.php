@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QuestionStage;
 use App\Enums\VideoStatus;
 use Database\Factories\QuestionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -98,7 +99,7 @@ class Question extends Model
      * Apply the search and filter choices from the questions list.
      *
      * @param  Builder<Question>  $query
-     * @param  array{q?: ?string, language?: ?string, category?: ?string, series?: ?string, uploaded?: ?string, video?: ?string}  $filters
+     * @param  array{q?: ?string, language?: ?string, category?: ?string, series?: ?string, uploaded?: ?string, video?: ?string, stage?: ?string}  $filters
      */
     #[Scope]
     protected function filter(Builder $query, array $filters): void
@@ -124,9 +125,72 @@ class Question extends Model
             ->when($filters['uploaded'] ?? null, fn (Builder $query, string $uploaded) => $uploaded === 'yes'
                 ? $query->whereNotNull('uploaded_at')
                 : $query->whereNull('uploaded_at'))
+            ->when($filters['stage'] ?? null, fn (Builder $query, string $stage) => $query->inStage(QuestionStage::from($stage)))
             ->when($filters['video'] ?? null, fn (Builder $query, string $video) => $video === 'with'
                 ? $query->whereHas('videos', fn (Builder $query) => $query->where('status', VideoStatus::Completed))
                 : $query->whereDoesntHave('videos', fn (Builder $query) => $query->where('status', VideoStatus::Completed)));
+    }
+
+    /**
+     * Only questions at the given stage (see QuestionStage for what each one means).
+     *
+     * @param  Builder<Question>  $query
+     */
+    #[Scope]
+    protected function inStage(Builder $query, QuestionStage $stage): void
+    {
+        $completed = fn (Builder $query) => $query->where('status', VideoStatus::Completed);
+        $inFlight = fn (Builder $query) => $query->whereIn('status', [VideoStatus::Pending, VideoStatus::Rendering]);
+        $failed = fn (Builder $query) => $query->where('status', VideoStatus::Failed);
+
+        match ($stage) {
+            QuestionStage::Uploaded => $query->whereNotNull('uploaded_at'),
+            QuestionStage::Ready => $query->whereNull('uploaded_at')->whereHas('videos', $completed),
+            QuestionStage::Rendering => $query->whereNull('uploaded_at')
+                ->whereDoesntHave('videos', $completed)
+                ->whereHas('videos', $inFlight),
+            QuestionStage::Failed => $query->whereNull('uploaded_at')
+                ->whereDoesntHave('videos', $completed)
+                ->whereDoesntHave('videos', $inFlight)
+                ->whereHas('videos', $failed),
+            QuestionStage::Draft => $query->whereNull('uploaded_at')->whereDoesntHave('videos'),
+        };
+    }
+
+    /**
+     * How many questions are at each stage, plus the total under "all".
+     *
+     * @return array<string, int>
+     */
+    public static function stageCounts(): array
+    {
+        $counts = ['all' => static::query()->count()];
+
+        foreach (QuestionStage::cases() as $stage) {
+            $counts[$stage->value] = static::query()->inStage($stage)->count();
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Where this question is now. Load `completedVideo` and `latestVideo` first to avoid extra queries.
+     */
+    public function stage(): QuestionStage
+    {
+        if ($this->isUploaded()) {
+            return QuestionStage::Uploaded;
+        }
+
+        if ($this->completedVideo !== null) {
+            return QuestionStage::Ready;
+        }
+
+        return match ($this->latestVideo?->status) {
+            null => QuestionStage::Draft,
+            VideoStatus::Failed => QuestionStage::Failed,
+            default => QuestionStage::Rendering,
+        };
     }
 
     /**

@@ -38,26 +38,31 @@ return [
     */
 
     'defaults' => [
-        'voice' => 'en-US-AriaNeural',
+        'voice' => 'en-US-AndrewMultilingualNeural',
         'speech_rate' => 10,
         'speech_pitch' => 0,
         'speech_volume' => 0,
         'narrate_question' => true,
         'narrate_explanation' => true,
         'tick_sound' => true,
-        'think_seconds' => 5,
-        'theme' => 'midnight',
+        'think_seconds' => 6,
+        'theme' => 'vscode',
         'quality' => 'high',
         'channel_name' => 'Python Daily',
-        'answer_voice' => 'en-US-GuyNeural',
+        'answer_voice' => 'en-US-AvaMultilingualNeural',
         'comment_prompt' => true,
         'hook_line' => true,
         'mascot' => true,
         'reveal_effects' => true,
         'sound_effects' => true,
+        'background_music' => true,
     ],
 
     'voices' => [
+        'en-US-AndrewMultilingualNeural' => 'Andrew HD (US, male, natural)',
+        'en-US-AvaMultilingualNeural' => 'Ava HD (US, female, natural)',
+        'en-US-BrianMultilingualNeural' => 'Brian HD (US, male, natural)',
+        'en-US-EmmaMultilingualNeural' => 'Emma HD (US, female, natural)',
         'en-US-AriaNeural' => 'Aria (US, female)',
         'en-US-GuyNeural' => 'Guy (US, male)',
         'en-US-JennyNeural' => 'Jenny (US, female)',
@@ -97,6 +102,9 @@ return [
     ],
 
     'themes' => [
+        'vscode' => 'VS Code Dark (editor look)',
+        'dracula' => 'Dracula (purple editor)',
+        'github' => 'GitHub Dark (blue editor)',
         'midnight' => 'Midnight (dark blue)',
         'ocean' => 'Ocean (teal)',
         'sunset' => 'Sunset (purple and orange)',

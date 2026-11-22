@@ -28,11 +28,6 @@
 
     <div class="space-y-5">
         @forelse ($questions as $question)
-            @php
-                $video = $question->completedVideo;
-                $ready = $video?->isPlayable();
-            @endphp
-
             <article class="panel space-y-4" id="question-{{ $question->id }}">
                 <div class="flex flex-wrap items-center gap-2">
                     @if ($question->seriesLabel())
@@ -42,14 +37,12 @@
                     @if ($question->category)
                         <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{{ $question->category->name }}</span>
                     @endif
-                    <span @class([
-                        'rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                        'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' => $ready,
-                        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' => ! $ready,
-                    ])>{{ $ready ? 'Video ready' : 'No video yet' }}</span>
                 </div>
 
-                <h2 class="text-lg font-semibold">{{ $question->title }}</h2>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <h2 class="text-lg font-semibold">{{ $question->title }}</h2>
+                    <x-stage-flags :question="$question" />
+                </div>
 
                 <div class="space-y-3">
                     @foreach ([
@@ -73,15 +66,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3">
-                    @if ($ready)
-                        <x-button :href="route('videos.download', $video)">Download MP4</x-button>
-                        <x-button variant="secondary" :href="route('videos.show', $video)">Watch</x-button>
-                    @else
-                        <form method="POST" action="{{ route('questions.videos.store', $question) }}">
-                            @csrf
-                            <x-button type="submit">Create video</x-button>
-                        </form>
-                    @endif
+                    <x-video-actions :question="$question" />
 
                     <form method="POST" action="{{ route('questions.uploaded', $question) }}">
                         @csrf

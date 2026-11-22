@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from . import effects, markdown
 from .languages import Language, get_language, token_pattern
-from .themes import CODE_COLORS, Color, Theme
+from .themes import Color, Theme
 
 WIDTH, HEIGHT = 1080, 1920
 MARGIN = 100
@@ -20,18 +21,24 @@ OPTION_HEIGHT = 120
 OPTION_GAP = 22
 OPTIONS_TOP = 1050
 PROMPT_HEIGHT = 120
+TAB_BAR = 76
+STATUS_BAR = 52
+GUTTER = 84
 HOOK_SECONDS = 2.6
 MASCOT_HEIGHT = 170
 MASCOT_CENTER_Y = 1818
 TIMER_BAR_TOP = 995
 
+FONT_DIR = Path(__file__).resolve().parent.parent / "fonts"
+
+# Bundled fonts (Poppins and JetBrains Mono) come first, system fonts are the fallback.
 FONT_FILES = {
-    "bold": ["segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"],
-    "regular": ["segoeui.ttf", "arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"],
-    "mono": ["consola.ttf", "cour.ttf", "DejaVuSansMono.ttf", "LiberationMono-Regular.ttf"],
-    "monobold": ["consolab.ttf", "courbd.ttf", "DejaVuSansMono-Bold.ttf", "LiberationMono-Bold.ttf"],
-    "italic": ["segoeuii.ttf", "ariali.ttf", "DejaVuSans-Oblique.ttf", "LiberationSans-Italic.ttf"],
-    "bolditalic": ["segoeuiz.ttf", "arialbi.ttf", "DejaVuSans-BoldOblique.ttf", "LiberationSans-BoldItalic.ttf"],
+    "bold": ["Poppins-Bold.ttf", "segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"],
+    "regular": ["Poppins-Medium.ttf", "segoeui.ttf", "arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"],
+    "mono": ["JetBrainsMono-Regular.ttf", "consola.ttf", "cour.ttf", "DejaVuSansMono.ttf", "LiberationMono-Regular.ttf"],
+    "monobold": ["JetBrainsMono-Bold.ttf", "consolab.ttf", "courbd.ttf", "DejaVuSansMono-Bold.ttf", "LiberationMono-Bold.ttf"],
+    "italic": ["Poppins-MediumItalic.ttf", "segoeuii.ttf", "ariali.ttf", "DejaVuSans-Oblique.ttf", "LiberationSans-Italic.ttf"],
+    "bolditalic": ["Poppins-BoldItalic.ttf", "segoeuiz.ttf", "arialbi.ttf", "DejaVuSans-BoldOblique.ttf", "LiberationSans-BoldItalic.ttf"],
 }
 
 _font_cache: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -42,11 +49,14 @@ def load_font(kind: str, size: int) -> ImageFont.FreeTypeFont:
     if key not in _font_cache:
         font = None
         for file_name in FONT_FILES[kind]:
-            try:
-                font = ImageFont.truetype(file_name, size)
+            for candidate in (str(FONT_DIR / file_name), file_name):
+                try:
+                    font = ImageFont.truetype(candidate, size)
+                    break
+                except OSError:
+                    continue
+            if font:
                 break
-            except OSError:
-                continue
         _font_cache[key] = font or ImageFont.load_default(size)
     return _font_cache[key]
 
@@ -55,10 +65,8 @@ def blend(foreground: Color, background: Color, amount: float) -> Color:
     return tuple(int(f * amount + b * (1 - amount)) for f, b in zip(foreground, background))  # type: ignore[return-value]
 
 
-def rounded_box(image: Image.Image, box: tuple[int, int, int, int], radius: int, fill: Color, alpha: float = 1.0) -> None:
-    """Anti-aliased rounded rectangle (drawn at 3x and scaled down)."""
-    left, top, right, bottom = box
-    width, height = right - left, bottom - top
+def rounded_mask(width: int, height: int, radius: int) -> Image.Image:
+    """Anti-aliased rounded rectangle mask (drawn at 3x and scaled down)."""
     key = (width, height, radius)
     if key not in _mask_cache:
         scale = 3
@@ -67,8 +75,13 @@ def rounded_box(image: Image.Image, box: tuple[int, int, int, int], radius: int,
             (0, 0, width * scale - 1, height * scale - 1), radius * scale, fill=255
         )
         _mask_cache[key] = mask.resize((width, height), Image.LANCZOS)
+    return _mask_cache[key]
 
-    mask = _mask_cache[key]
+
+def rounded_box(image: Image.Image, box: tuple[int, int, int, int], radius: int, fill: Color, alpha: float = 1.0) -> None:
+    """Anti-aliased rounded rectangle."""
+    left, top, right, bottom = box
+    mask = rounded_mask(right - left, bottom - top, radius)
     if alpha < 1.0:
         mask = mask.point(lambda value: int(value * alpha))
     image.paste(fill, (left, top), mask)
@@ -209,27 +222,27 @@ class CodeLayout:
     card_height: int
 
 
-def highlight(code: str, language: Language) -> list[list[tuple[str, Color]]]:
+def highlight(code: str, language: Language, colors: dict[str, Color]) -> list[list[tuple[str, Color]]]:
     """Split code into lines of (text, colour) pieces."""
     lines: list[list[tuple[str, Color]]] = [[]]
     for match in token_pattern(language.key).finditer(code):
         kind = match.lastgroup
         text = match.group()
-        color = CODE_COLORS["default"]
+        color = colors["default"]
 
         if kind == "comment":
-            color = CODE_COLORS["comment"]
+            color = colors["comment"]
         elif kind == "string":
-            color = CODE_COLORS["string"]
+            color = colors["string"]
         elif kind == "number":
-            color = CODE_COLORS["number"]
+            color = colors["number"]
         elif kind == "name":
             following = code[match.end():].lstrip(" ")[:1]
             word = text.lower() if language.ignore_case else text
             if word in language.keywords:
-                color = CODE_COLORS["keyword"]
+                color = colors["keyword"]
             elif following == "(" or text in language.builtins:
-                color = CODE_COLORS["call"]
+                color = colors["call"]
 
         for index, piece in enumerate(text.split("\n")):
             if index > 0:
@@ -239,16 +252,16 @@ def highlight(code: str, language: Language) -> list[list[tuple[str, Color]]]:
     return lines
 
 
-def layout_code(code: str, max_height: int, language: Language) -> CodeLayout:
-    lines = highlight(code.strip("\n"), language)
+def layout_code(code: str, max_height: int, language: Language, colors: dict[str, Color]) -> CodeLayout:
+    lines = highlight(code.strip("\n"), language, colors)
     chosen = None
     for size in range(46, 25, -2):
         font = load_font("mono", size)
         line_height = int(size * 1.45)
         widest = max((sum(font.getlength(text) for text, _ in line) for line in lines), default=0)
-        height = 84 + len(lines) * line_height + 36
+        height = TAB_BAR + 24 + len(lines) * line_height + 20 + STATUS_BAR
         chosen = CodeLayout(font, line_height, lines, min(height, max_height))
-        if widest <= CONTENT_WIDTH - 80 and height <= max_height:
+        if widest <= CONTENT_WIDTH - GUTTER - 40 and height <= max_height:
             break
     return chosen  # type: ignore[return-value]
 
@@ -281,12 +294,12 @@ class FrameBuilder:
         self.correct = int(question["correct_option"])
 
         self.background = self._make_background()
-        self.question_font = load_font("bold", 56)
+        self.question_font = load_font("bold", 52)
         self.question_lines = wrap_text(question["question_text"], self.question_font, CONTENT_WIDTH)[:3]
 
         code = (question.get("code") or "").strip()
-        self.code_quiz = layout_code(code, 500, self.language) if code else None
-        self.code_explain = layout_code(code, 420, self.language) if code else None
+        self.code_quiz = layout_code(code, 540, self.language, theme.code) if code else None
+        self.code_explain = layout_code(code, 470, self.language, theme.code) if code else None
 
         self.option_font = self._fit_option_font()
         self.explanation_words = self._explanation_words()
@@ -347,7 +360,7 @@ class FrameBuilder:
 
     def _question_text(self, draw: ImageDraw.ImageDraw, top: int = 250) -> None:
         for index, words in enumerate(self.question_lines):
-            draw.text((MARGIN, top + index * 70), " ".join(words), font=self.question_font, fill=self.theme.text)
+            draw.text((MARGIN, top + index * 68), " ".join(words), font=self.question_font, fill=self.theme.text)
 
     def _ring(self, image: Image.Image, draw: ImageDraw.ImageDraw, fraction: float, label: str, color: Color) -> None:
         radius, thickness, scale = 78, 14, 4
@@ -380,23 +393,64 @@ class FrameBuilder:
         ]
         draw.line(points, fill=(255, 255, 255), width=width, joint="curve")
 
-    def _code_card(self, image: Image.Image, draw: ImageDraw.ImageDraw, layout: CodeLayout, top: int) -> int:
-        """Draw the code card and return its bottom edge."""
-        bottom = top + layout.card_height
-        rounded_box(image, (MARGIN, top, WIDTH - MARGIN, bottom), 36, self.theme.code_card)
-        for index, color in enumerate(((255, 95, 86), (255, 189, 46), (39, 201, 63))):
-            cx = MARGIN + 44 + index * 34
-            draw.ellipse((cx - 9, top + 30 - 9, cx + 9, top + 30 + 9), fill=color)
-        draw.text((WIDTH - MARGIN - 40, top + 30), self.language.filename, font=load_font("regular", 26), fill=self.theme.muted, anchor="rm")
+    def _code_card(
+        self, image: Image.Image, draw: ImageDraw.ImageDraw, layout: CodeLayout, top: int, cursor: bool = True
+    ) -> int:
+        """Draw the code as an editor window (tab bar, line numbers, run button, status bar). Returns the bottom edge."""
+        theme = self.theme
+        width, height = CONTENT_WIDTH, layout.card_height
+        background = theme.code_card
+        tab_bar = blend((255, 255, 255), background, 0.06)
+        muted = blend(theme.muted, background, 0.7)
 
-        y = top + 72
-        for line in layout.lines:
-            x = MARGIN + 40
-            for text, color in line:
-                draw.text((x, y), text, font=layout.font, fill=color)
+        card = Image.new("RGB", (width, height), background)
+        pen = ImageDraw.Draw(card)
+
+        pen.rectangle((0, 0, width, TAB_BAR), fill=tab_bar)
+        for index, color in enumerate(((255, 95, 86), (255, 189, 46), (39, 201, 63))):
+            cx = 40 + index * 34
+            pen.ellipse((cx - 9, TAB_BAR // 2 - 9, cx + 9, TAB_BAR // 2 + 9), fill=color)
+
+        tab_font = load_font("regular", 27)
+        tab_width = int(tab_font.getlength(self.language.filename)) + 118
+        pen.rectangle((160, 12, 160 + tab_width, TAB_BAR), fill=background)
+        pen.rectangle((160, 12, 160 + tab_width, 16), fill=theme.accent)
+        pen.ellipse((182, TAB_BAR // 2 - 2, 198, TAB_BAR // 2 + 14), fill=theme.accent)
+        pen.text((212, TAB_BAR // 2 + 8), self.language.filename, font=tab_font, fill=theme.text, anchor="lm")
+        pen.text((160 + tab_width - 30, TAB_BAR // 2 + 8), "x", font=load_font("regular", 24), fill=muted, anchor="mm")
+
+        run_x, run_y = width - 50, TAB_BAR // 2
+        pen.ellipse((run_x - 22, run_y - 22, run_x + 22, run_y + 22), fill=theme.correct)
+        pen.polygon([(run_x - 6, run_y - 11), (run_x - 6, run_y + 11), (run_x + 12, run_y)], fill=(255, 255, 255))
+
+        status_top = height - STATUS_BAR
+        pen.rectangle((0, status_top, width, height), fill=theme.accent)
+        status_font = load_font("bold", 24)
+        status_text = (20, 20, 28) if sum(theme.accent) > 450 else (255, 255, 255)
+        last_line = len(layout.lines)
+        pen.text((28, status_top + STATUS_BAR // 2), f"{self.language.label}   UTF-8", font=status_font, fill=status_text, anchor="lm")
+        pen.text((width - 28, status_top + STATUS_BAR // 2), f"Ln {last_line}", font=status_font, fill=status_text, anchor="rm")
+
+        y = TAB_BAR + 24
+        number_font = load_font("mono", max(20, int(layout.font.size * 0.8)))
+        cursor_x = GUTTER + 10
+        for number, pieces in enumerate(layout.lines, start=1):
+            if number == last_line:
+                pen.rectangle((0, y - 6, width, y + layout.line_height - 8), fill=blend((255, 255, 255), background, 0.07))
+            pen.text((GUTTER - 22, y + layout.line_height // 2 - 6), str(number), font=number_font, fill=muted, anchor="rm")
+
+            x = GUTTER + 10
+            for text, color in pieces:
+                pen.text((x, y), text, font=layout.font, fill=color)
                 x += layout.font.getlength(text)
+            cursor_x = x
             y += layout.line_height
-        return bottom
+
+        if cursor:
+            pen.rectangle((int(cursor_x) + 4, y - layout.line_height - 2, int(cursor_x) + 8, y - 12), fill=theme.accent)
+
+        image.paste(card, (MARGIN, top), rounded_mask(width, height, 36))
+        return top + height
 
     def _options(self, image: Image.Image, draw: ImageDraw.ImageDraw, top: int, reveal: bool, pop: float = 0.0) -> None:
         theme = self.theme
@@ -437,7 +491,7 @@ class FrameBuilder:
 
     def _prompt_top(self) -> int:
         """Where the hook and comment boxes go: the free space under the code, or below the options."""
-        code_bottom = 470 + self.code_quiz.card_height if self.code_quiz else 250 + len(self.question_lines) * 70
+        code_bottom = 470 + self.code_quiz.card_height if self.code_quiz else 250 + len(self.question_lines) * 68
         gap = TIMER_BAR_TOP - code_bottom
         if gap >= PROMPT_HEIGHT + 60:
             return code_bottom + (gap - PROMPT_HEIGHT) // 2
@@ -525,7 +579,7 @@ class FrameBuilder:
         self._ring(image, draw, remaining / self.think_seconds, str(max(1, math.ceil(remaining))), color)
         self._question_text(draw)
         if self.code_quiz:
-            self._code_card(image, draw, self.code_quiz, 470)
+            self._code_card(image, draw, self.code_quiz, 470, cursor=int(max(elapsed, 0) * 2) % 2 == 0)
         self._timer_bar(image, remaining)
         pulse = 0.5 + 0.5 * math.sin(remaining * math.tau * 1.2)
         hurry = remaining <= 3
@@ -638,10 +692,10 @@ class FrameBuilder:
                 font = rich_font(piece.style, size)
                 if piece.style == "codeblock":
                     rounded_box(image, (origin[0], baseline - int(size * 1.0), origin[0] + block_width, baseline + int(size * 0.42)), 12, theme.code_card)
-                    draw.text((x, baseline), piece.text, font=font, fill=CODE_COLORS["default"], anchor="ls")
+                    draw.text((x, baseline), piece.text, font=font, fill=theme.code["default"], anchor="ls")
                 elif piece.style == "code":
                     rounded_box(image, (x, baseline - int(size * 0.98), x + piece.width, baseline + int(size * 0.3)), 10, theme.code_card)
-                    draw.text((x + CODE_PADDING, baseline), piece.text, font=font, fill=CODE_COLORS["default"], anchor="ls")
+                    draw.text((x + CODE_PADDING, baseline), piece.text, font=font, fill=theme.code["default"], anchor="ls")
                 elif piece.style == "marker":
                     draw.text((x, baseline), piece.text, font=font, fill=theme.accent, anchor="ls")
                 else:

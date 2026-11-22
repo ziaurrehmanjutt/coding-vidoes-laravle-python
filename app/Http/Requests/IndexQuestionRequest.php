@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\QuestionStage;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,7 @@ class IndexQuestionRequest extends FormRequest
             'series' => ['nullable', Rule::in(['none', ...array_keys(config('video.series'))])],
             'uploaded' => ['nullable', Rule::in(['yes', 'no'])],
             'video' => ['nullable', Rule::in(['with', 'without'])],
+            'stage' => ['nullable', Rule::enum(QuestionStage::class)],
             'sort' => ['nullable', Rule::in(['sequence'])],
             'page' => ['nullable', 'integer', 'min:1'],
         ];

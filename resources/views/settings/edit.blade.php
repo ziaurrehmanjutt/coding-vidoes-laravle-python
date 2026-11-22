@@ -82,6 +82,11 @@
                     Sound effects (whoosh, drum roll, time-up buzzer, pop)
                 </label>
                 <label class="flex items-center gap-3 text-sm">
+                    <input type="checkbox" name="background_music" value="1" class="size-4 accent-indigo-600"
+                           @checked(old('background_music', $setting->background_music))>
+                    Soft lo-fi background music (gets quieter while the voice speaks)
+                </label>
+                <label class="flex items-center gap-3 text-sm">
                     <input type="checkbox" name="comment_prompt" value="1" class="size-4 accent-indigo-600"
                            @checked(old('comment_prompt', $setting->comment_prompt))>
                     Show the "Pause &amp; comment your answer" box while the timer runs

@@ -72,6 +72,7 @@ class SettingsPayload(BaseModel):
     mascot: bool = True
     reveal_effects: bool = True
     sound_effects: bool = True
+    background_music: bool = True
 
 
 class RenderRequest(BaseModel):

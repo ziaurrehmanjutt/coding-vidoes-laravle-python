@@ -21,7 +21,7 @@ class UploadQueueController extends Controller
         $questions = Question::query()
             ->whereNull('uploaded_at')
             ->when($series, fn ($query, string $series) => $query->where('series', $series))
-            ->with(['category', 'completedVideo'])
+            ->with(['category', 'completedVideo', 'latestVideo'])
             ->inSequence()
             ->get();
 

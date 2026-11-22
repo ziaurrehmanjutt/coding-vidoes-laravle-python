@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
     'mascot',
     'reveal_effects',
     'sound_effects',
+    'background_music',
 ])]
 class VideoSetting extends Model
 {
@@ -48,6 +49,7 @@ class VideoSetting extends Model
             'mascot' => 'boolean',
             'reveal_effects' => 'boolean',
             'sound_effects' => 'boolean',
+            'background_music' => 'boolean',
             'think_seconds' => 'integer',
         ];
     }

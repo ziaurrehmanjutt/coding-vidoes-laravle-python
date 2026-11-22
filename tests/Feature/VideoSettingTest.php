@@ -168,3 +168,22 @@ it('sends the playful options to Python when a video is created', function () {
         && $request['settings']['reveal_effects'] === true
         && $request['settings']['sound_effects'] === true);
 });
+
+it('saves the background music option and offers the editor themes and natural voices', function () {
+    $this->put(route('settings.update'), validSettingData(['background_music' => '1', 'theme' => 'dracula', 'voice' => 'en-US-AndrewMultilingualNeural']))
+        ->assertSessionHasNoErrors();
+
+    expect(VideoSetting::sole())
+        ->background_music->toBeTrue()
+        ->theme->toBe('dracula')
+        ->voice->toBe('en-US-AndrewMultilingualNeural');
+
+    $this->put(route('settings.update'), validSettingData());
+
+    expect(VideoSetting::sole()->background_music)->toBeFalse();
+
+    $this->get(route('settings.edit'))
+        ->assertSee('VS Code Dark')
+        ->assertSee('Andrew HD')
+        ->assertSee('Soft lo-fi background music');
+});

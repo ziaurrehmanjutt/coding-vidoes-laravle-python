@@ -5,59 +5,40 @@ namespace App\Http\Controllers;
 use App\Enums\VideoStatus;
 use App\Models\GeneratedVideo;
 use App\Models\Question;
-use App\Models\VideoSetting;
-use App\Services\PythonVideoService;
+use App\Services\VideoQueue;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Throwable;
 
 class GeneratedVideoController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $status = VideoStatus::tryFrom((string) $request->query('status'));
+
         return view('videos.index', [
-            'videos' => GeneratedVideo::query()->with('question')->latest()->get(),
+            'videos' => GeneratedVideo::query()
+                ->with('question')
+                ->when($status, fn ($query, VideoStatus $status) => $query->where('status', $status))
+                ->latest()
+                ->latest('id')
+                ->get(),
+            'activeStatus' => $status,
+            'statusCounts' => GeneratedVideo::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
         ]);
     }
 
     /**
      * Save a pending video with a copy of the current settings, then ask Python to render it.
      */
-    public function store(Question $question, PythonVideoService $python): RedirectResponse
+    public function store(Question $question, VideoQueue $queue): RedirectResponse
     {
-        $settings = VideoSetting::current()->only(array_keys(config('video.defaults')));
-
-        if ($question->think_seconds !== null) {
-            $settings['think_seconds'] = $question->think_seconds;
-        }
-
-        $video = $question->videos()->create([
-            'status' => VideoStatus::Pending,
-            'progress' => 0,
-            'message' => 'Waiting for the Python service',
-            'settings_snapshot' => $settings,
-        ]);
-
-        try {
-            $python->startRender($video);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            $video->update([
-                'status' => VideoStatus::Failed,
-                'message' => $exception instanceof RuntimeException
-                    ? $exception->getMessage()
-                    : 'The Python service is not running. Start it and try again.',
-            ]);
-        }
-
-        return to_route('videos.show', $video);
+        return to_route('videos.show', $queue->start($question));
     }
 
     public function show(GeneratedVideo $video): View

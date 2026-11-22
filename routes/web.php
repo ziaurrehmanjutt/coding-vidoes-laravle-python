@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\GeneratedVideoController;
+use App\Http\Controllers\MissingVideosController;
 use App\Http\Controllers\PredictOutputController;
+use App\Http\Controllers\QuestionBulkController;
 use App\Http\Controllers\QuestionController;
 use App\Http\Controllers\QuestionUploadController;
 use App\Http\Controllers\QuestionUploadDetailsController;
@@ -13,6 +15,8 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/questions');
 
 Route::post('questions/predict', PredictOutputController::class)->name('questions.predict');
+Route::post('questions/bulk', QuestionBulkController::class)->name('questions.bulk');
+Route::post('questions/missing-videos', MissingVideosController::class)->name('questions.missing-videos');
 Route::resource('questions', QuestionController::class)->except('show');
 Route::patch('questions/{question}/uploaded', QuestionUploadController::class)->name('questions.uploaded');
 Route::post('questions/{question}/upload-details', QuestionUploadDetailsController::class)->name('questions.upload-details');

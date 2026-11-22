@@ -21,7 +21,7 @@ class QuestionController extends Controller
         unset($filters['sort']);
 
         $questions = Question::query()
-            ->with(['category', 'latestVideo'])
+            ->with(['category', 'latestVideo', 'completedVideo'])
             ->withCount('videos')
             ->filter($filters)
             ->when(
@@ -40,6 +40,8 @@ class QuestionController extends Controller
             'categories' => Category::query()->orderBy('name')->get(),
             'languages' => config('video.languages'),
             'totalQuestions' => Question::count(),
+            'stageCounts' => Question::stageCounts(),
+            'activeStage' => $filters['stage'] ?? null,
         ]);
     }
 

@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Enums\QuestionStage;
+use App\Models\Question;
 use Illuminate\Foundation\DevCommands;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -21,6 +24,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPythonVideoService();
+
+        View::composer('components.layouts.app', fn ($view) => $view->with(
+            'readyToUploadCount',
+            Question::query()->inStage(QuestionStage::Ready)->count(),
+        ));
     }
 
     /**
