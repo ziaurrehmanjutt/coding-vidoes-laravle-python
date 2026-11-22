@@ -7,7 +7,7 @@ Each video shows a question with code and options A to D, a thinking countdown, 
 ```
 Browser ──> Laravel (UI, database, files)  ──HTTP + token──>  Python service (FastAPI)
                  │                                                  │
-                 └────── shared SQLite database + storage ──────────┘
+                 └────── shared MySQL database + storage ───────────┘
 ```
 
 ## What it does
@@ -43,15 +43,32 @@ Run these from the project folder. The Windows commands are for PowerShell. On m
 composer run setup
 ```
 
-This installs the PHP packages, creates `.env`, generates the app key, runs the migrations (SQLite) and builds the front end.
+This installs the PHP packages, creates `.env`, generates the app key and builds the front end.
 
-If `database/database.sqlite` does not exist yet, create an empty one first:
+The app uses MySQL. Create the database first (the default settings expect a database called `prgram_vid` and the `root` user with no password):
 
-```powershell
-New-Item database/database.sqlite -ItemType File
+```bash
+mysql -u root -e "CREATE DATABASE prgram_vid CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
 ```
 
-(macOS or Linux: `touch database/database.sqlite`)
+Then set these in `.env` and run the migrations:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=prgram_vid
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+```bash
+php artisan migrate
+```
+
+Tables are created as InnoDB on purpose (`DB_ENGINE` in `config/database.php`), because some servers default to MyISAM, which has no foreign keys.
+
+The Python service writes render progress into the same database. Give `python_services/.env` the same `DB_*` values (see `.env.example`). SQLite still works if you set `DB_CONNECTION=sqlite` in both places.
 
 ### 2. Python service
 
@@ -82,7 +99,8 @@ The other settings already work with the default folder layout:
 | --- | --- | --- |
 | `VIDEO_PYTHON_URL` (Laravel) | `http://127.0.0.1:8001` | Where Laravel finds the Python service |
 | `LARAVEL_STORAGE_PATH` (Python) | `../storage/app/private` | Where videos are written, which is Laravel's private storage |
-| `DB_PATH` (Python) | `../database/database.sqlite` | The same database Laravel uses |
+| `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (Python) | `mysql`, `127.0.0.1`, `3306`, `prgram_vid`, `root`, empty | The same database Laravel uses |
+| `DB_PATH` (Python) | `../database/database.sqlite` | Only used when `DB_CONNECTION=sqlite` |
 | `VIDEO_FPS` (Python) | `30` | Frames per second |
 
 ### 4. Add the example questions (optional)
@@ -151,7 +169,7 @@ The tests use Pest. They fake the Python service, so it does not need to be runn
 ```
 app/                  Laravel code: models, controllers, form requests, services
 config/video.php      languages, series, voices, themes, qualities, defaults
-database/             migrations, factories, seeders, SQLite file
+database/             migrations, factories, seeders
 resources/views/      Blade pages (questions, categories, queue, videos, settings)
 resources/js/         small scripts: predict output, progress polling, copy buttons
 python_services/

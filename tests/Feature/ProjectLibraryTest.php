@@ -122,16 +122,14 @@ it('copies a project with its pictures but not its video', function () {
     Storage::disk('local')->assertExists($project->assetsPath().'/logo.png');
 });
 
-it('seeds a varied library of studio videos that the editor accepts', function () {
+it('seeds the hand-scripted showcase videos and the editor accepts every one', function () {
     $this->seed(ProjectSeeder::class);
 
     $projects = Project::all();
 
-    expect($projects->count())->toBeGreaterThanOrEqual(30)
-        ->and($projects->pluck('type')->unique()->count())->toBeGreaterThanOrEqual(5)
-        ->and($projects->pluck('category')->filter()->unique()->count())->toBeGreaterThanOrEqual(8)
-        ->and($projects->pluck('language')->filter()->unique()->count())->toBeGreaterThanOrEqual(4)
-        ->and($projects->pluck('name')->unique())->toHaveCount($projects->count());
+    expect($projects)->toHaveCount(5)
+        ->and($projects->pluck('name')->unique())->toHaveCount(5)
+        ->and($projects->pluck('category')->filter()->unique()->count())->toBeGreaterThanOrEqual(4);
 
     foreach ($projects as $project) {
         $validator = Validator::make(
@@ -143,25 +141,54 @@ it('seeds a varied library of studio videos that the editor accepts', function (
     }
 });
 
-it('draws the pictures the seeded picture videos use', function () {
+it('makes the showcase videos long, narrated, with music and real motion', function () {
     $this->seed(ProjectSeeder::class);
 
-    $project = Project::where('type', ProjectType::Pictures)->firstOrFail();
+    foreach (Project::all() as $project) {
+        $objects = collect($project->document['objects']);
+        $animated = $objects->flatMap(fn ($object) => array_keys($object['tracks'] ?? []))->unique();
 
-    foreach (collect($project->document['objects'])->pluck('asset')->filter() as $asset) {
-        Storage::disk('local')->assertExists($project->assetsPath().'/'.$asset);
+        expect($project->document['duration'])->toBeGreaterThanOrEqual(40, $project->name)
+            ->and($project->document['music'])->toBeTrue()
+            ->and($objects->where('type', 'voice')->count())->toBeGreaterThanOrEqual(5, $project->name)
+            ->and($objects->count())->toBeGreaterThanOrEqual(25, $project->name)
+            ->and($animated->count())->toBeGreaterThanOrEqual(1, $project->name);
+
+        // Nothing may start after the video ends, and nothing may run past it.
+        foreach ($objects as $object) {
+            expect($object['start'] + $object['duration'])->toBeLessThanOrEqual($project->document['duration'] + 0.5, $project->name.': '.$object['name']);
+        }
+    }
+
+    $everyProp = Project::all()->flatMap(fn ($project) => collect($project->document['objects'])->flatMap(fn ($object) => array_keys($object['tracks'] ?? [])))->unique();
+
+    expect($everyProp->all())->toContain('x', 'y', 'rotation', 'scale', 'opacity');
+});
+
+it('gives every showcase video keyframes that fall inside its object', function () {
+    $this->seed(ProjectSeeder::class);
+
+    foreach (Project::all() as $project) {
+        foreach ($project->document['objects'] as $object) {
+            foreach ($object['tracks'] ?? [] as $prop => $keys) {
+                foreach ($keys as $key) {
+                    expect($key['t'])->toBeLessThanOrEqual($object['duration'] + 0.01, "{$project->name}: {$object['name']} {$prop}");
+                }
+            }
+        }
     }
 });
 
 it('does not overwrite seeded projects that were edited', function () {
     $this->seed(ProjectSeeder::class);
-    $project = Project::where('name', 'Swap two variables')->firstOrFail();
+    $project = Project::where('name', 'Big O: the algorithm race')->firstOrFail();
     $project->update(['tags' => ['mine']]);
 
     $this->seed(ProjectSeeder::class);
 
     expect($project->refresh()->tags)->toBe(['mine'])
-        ->and(Project::where('name', 'Swap two variables')->count())->toBe(1);
+        ->and(Project::where('name', 'Big O: the algorithm race')->count())->toBe(1)
+        ->and(Project::count())->toBe(5);
 });
 
 it('keeps every field of the document when the editor saves, not only the validated ones', function () {

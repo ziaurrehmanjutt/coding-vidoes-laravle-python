@@ -89,7 +89,7 @@ def health() -> dict:
         "status": "ok",
         "ffmpeg": imageio_ffmpeg.get_ffmpeg_exe(),
         "storage": str(config.LARAVEL_STORAGE_PATH),
-        "database": str(config.DB_PATH),
+        "database": f"mysql://{config.DB_HOST}:{config.DB_PORT}/{config.DB_DATABASE}" if config.DB_CONNECTION == "mysql" else str(config.DB_PATH),
     }
 
 

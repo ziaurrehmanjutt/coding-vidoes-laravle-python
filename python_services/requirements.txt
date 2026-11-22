@@ -5,3 +5,4 @@ numpy>=1.26
 imageio-ffmpeg>=0.5
 edge-tts>=6.1
 python-dotenv>=1.0
+pymysql>=1.1
