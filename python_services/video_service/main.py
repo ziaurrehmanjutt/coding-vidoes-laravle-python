@@ -9,9 +9,10 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Re
 from pydantic import BaseModel, Field
 
 from . import config
-from .db import update_video
+from .db import update_project, update_video
 from .predictor import predict_output
 from .renderer import render_video, resolve_output
+from .studio import render_project
 from .tts import VoiceSettings, speech_mp3
 
 logger = logging.getLogger("video_service")
@@ -142,3 +143,55 @@ def run_render(request: RenderRequest) -> None:
         except Exception as exc:
             logger.exception("Render failed for video %s", video_id)
             update_video(video_id, status="failed", progress=state["progress"], message=str(exc)[:250])
+
+
+class ProjectRenderRequest(BaseModel):
+    project_id: int
+    output_path: str
+    document: dict
+    settings: dict = Field(default_factory=dict)
+    assets_path: str = ""
+
+
+@app.post("/render-project", status_code=202, dependencies=[Depends(verify_token)])
+def render_studio_project(request: ProjectRenderRequest, background_tasks: BackgroundTasks) -> dict:
+    try:
+        resolve_output(request.output_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    background_tasks.add_task(run_project_render, request)
+    return {"accepted": True, "project_id": request.project_id}
+
+
+def run_project_render(request: ProjectRenderRequest) -> None:
+    project_id = request.project_id
+    state = {"progress": 0}
+
+    def report(progress: int, message: str) -> None:
+        state["progress"] = progress
+        update_project(project_id, status="rendering", progress=progress, message=message)
+
+    with render_lock:
+        try:
+            report(1, "Started")
+            seconds, warning = render_project(
+                request.document, request.settings, request.output_path, report, resolve_output,
+                assets_folder(request.assets_path),
+            )
+            update_project(
+                project_id, status="completed", progress=100, message=warning or "Video is ready",
+                path=request.output_path, duration_seconds=round(seconds, 2),
+            )
+        except Exception as exc:
+            logger.exception("Project render failed for %s", project_id)
+            update_project(project_id, status="failed", progress=state["progress"], message=str(exc)[:250])
+
+
+def assets_folder(assets_path: str):
+    """The folder with a project's uploaded pictures, only if it is inside the shared storage."""
+    if not assets_path:
+        return None
+    root = config.LARAVEL_STORAGE_PATH.resolve()
+    folder = (root / assets_path).resolve()
+    return folder if root in folder.parents else None

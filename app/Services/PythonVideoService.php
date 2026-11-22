@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GeneratedVideo;
+use App\Models\Project;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
@@ -61,6 +62,28 @@ class PythonVideoService
 
         if ($response->failed()) {
             throw new RuntimeException('The Python service could not start the render.');
+        }
+    }
+
+    /**
+     * Ask Python to render a studio project from its saved document.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function startProjectRender(Project $project, array $settings): void
+    {
+        $response = $this->client()
+            ->timeout(10)
+            ->post('/render-project', [
+                'project_id' => $project->id,
+                'output_path' => $project->expectedPath(),
+                'document' => $project->document,
+                'assets_path' => $project->assetsPath(),
+                'settings' => $settings,
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('The Python service could not start the render. Is it running?');
         }
     }
 

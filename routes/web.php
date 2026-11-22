@@ -4,6 +4,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\GeneratedVideoController;
 use App\Http\Controllers\MissingVideosController;
 use App\Http\Controllers\PredictOutputController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\QuestionBulkController;
 use App\Http\Controllers\QuestionController;
 use App\Http\Controllers\QuestionUploadController;
@@ -39,4 +40,15 @@ Route::controller(GeneratedVideoController::class)->prefix('videos')->name('vide
     Route::get('{video}/file', 'file')->name('file');
     Route::get('{video}/download', 'download')->name('download');
     Route::delete('{video}', 'destroy')->name('destroy');
+});
+
+Route::resource('projects', ProjectController::class)->only(['index', 'store', 'edit', 'update', 'destroy']);
+Route::controller(ProjectController::class)->prefix('projects/{project}')->name('projects.')->group(function () {
+    Route::post('render', 'render')->name('render');
+    Route::post('duplicate', 'duplicate')->name('duplicate');
+    Route::post('assets', 'storeAsset')->name('assets.store');
+    Route::get('assets/{asset}', 'showAsset')->where('asset', '[A-Za-z0-9]+\.(png|jpg|jpeg|webp|gif)')->name('assets.show');
+    Route::get('status', 'status')->name('status');
+    Route::get('file', 'file')->name('file');
+    Route::get('download', 'download')->name('download');
 });

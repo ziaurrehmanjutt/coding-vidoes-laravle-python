@@ -1,4 +1,4 @@
-@props(['title' => 'Quiz Video Maker'])
+@props(['title' => 'Quiz Video Maker', 'wide' => false])
 
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -21,6 +21,7 @@
                     ['questions.index', 'questions.*', 'Questions'],
                     ['categories.index', 'categories.*', 'Categories'],
                     ['queue.index', 'queue.*', 'Upload queue'],
+                    ['projects.index', 'projects.*', 'Studio'],
                     ['videos.index', 'videos.*', 'Videos'],
                     ['settings.edit', 'settings.*', 'Video settings'],
                 ] as [$route, $pattern, $label])
@@ -41,7 +42,7 @@
         </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-4 py-8">
+    <main @class(['mx-auto px-4 py-8', 'max-w-6xl' => ! $wide, 'max-w-[1600px]' => $wide])>
         @if (session('status'))
             <div role="status" class="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
                 {{ session('status') }}

@@ -21,3 +21,11 @@
         @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900;
     }
 }
+
+/* Fonts used by the studio preview. They are the same files the Python renderer uses. */
+@font-face { font-family: 'Poppins'; font-weight: 500; font-style: normal; src: url('/fonts/Poppins-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 700; font-style: normal; src: url('/fonts/Poppins-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 500; font-style: italic; src: url('/fonts/Poppins-MediumItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 700; font-style: italic; src: url('/fonts/Poppins-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url('/fonts/JetBrainsMono-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; src: url('/fonts/JetBrainsMono-Bold.ttf') format('truetype'); }

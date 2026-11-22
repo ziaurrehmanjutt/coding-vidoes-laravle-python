@@ -5,3 +5,7 @@ import './auto-submit';
 import './copy-buttons';
 import './stage-poll';
 import './bulk-select';
+
+if (document.getElementById('studio')) {
+    import('./studio/editor');
+}
