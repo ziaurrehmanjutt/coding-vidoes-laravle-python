@@ -11,7 +11,7 @@ use App\Enums\ProjectType;
 final class BatchOne
 {
     /**
-     * @return list<array{name: string, type: ProjectType, category: string, language?: string, tags: list<string>, document: array<string, mixed>}>
+     * @return list<array{name: string, type: ProjectType, category: string, language?: string, tags: list<string>, upload: array{title: string, description: string, hashtags: list<string>}, document: array<string, mixed>}>
      */
     public static function projects(): array
     {
@@ -19,26 +19,51 @@ final class BatchOne
             [
                 'name' => 'What happens when you type google.com',
                 'type' => ProjectType::Explain, 'category' => 'Web and CSS', 'tags' => ['browser', 'dns', 'http', 'networking'],
+                'upload' => [
+                    'title' => 'What REALLY happens when you type google.com? (in 40 seconds)',
+                    'description' => "You press enter and a website appears in under a second. But what actually happens in between?\n\nIn this short: your browser asks a DNS server for the address, connects to the server, receives HTML, CSS and JavaScript, and draws the page.\n\nComment which part surprised you the most.\n\nFollow for more web and networking explained in under a minute!",
+                    'hashtags' => ['shorts', 'coding', 'programming', 'webdevelopment', 'dns', 'http', 'networking', 'learntocode'],
+                ],
                 'document' => self::googleJourney(),
             ],
             [
                 'name' => 'Big O: the algorithm race',
                 'type' => ProjectType::Explain, 'category' => 'Algorithms', 'tags' => ['big-o', 'performance', 'interview'],
+                'upload' => [
+                    'title' => 'Big O explained as a race: O(1) vs O(n²) with 1 million items',
+                    'description' => "Four algorithms race while the list grows from 10 to 1,000 to 1,000,000 items.\n\nO(1) and O(log n) barely notice. O(n) slows down. O(n²) would take days.\n\nThat is why Big O matters, and why interviewers keep asking about it.\n\nWhich complexity do you meet most in your own code? Tell me in the comments.\n\nFollow for more algorithms explained visually!",
+                    'hashtags' => ['shorts', 'coding', 'programming', 'bigo', 'algorithms', 'datastructures', 'interviewprep', 'learntocode'],
+                ],
                 'document' => self::bigORace(),
             ],
             [
                 'name' => 'Spot the bug in 8 seconds',
                 'type' => ProjectType::Code, 'category' => 'Interview prep', 'language' => 'python', 'tags' => ['bugs', 'interview', 'challenge'],
+                'upload' => [
+                    'title' => 'Can you spot the bug in 8 seconds? Python and JavaScript',
+                    'description' => "Two real bugs, two countdowns.\n\nRound 1 is a Python loop that skips the first item. Round 2 is a JavaScript condition that is always true.\n\nPause the video, find the bug, and comment your answer before the reveal.\n\nWant a new bug every day? Follow!",
+                    'hashtags' => ['shorts', 'coding', 'programming', 'debugging', 'python', 'javascript', 'bugs', 'interviewprep'],
+                ],
                 'document' => self::bugHunt(),
             ],
             [
                 'name' => '0.1 + 0.2 is not 0.3',
                 'type' => ProjectType::Explain, 'category' => 'Computer science', 'language' => 'python', 'tags' => ['floating-point', 'gotcha', 'binary'],
+                'upload' => [
+                    'title' => 'Why 0.1 + 0.2 is NOT 0.3 in every programming language',
+                    'description' => "Python, JavaScript, Java, PHP, Go and C# all print 0.30000000000000004. Is it a bug? No.\n\nComputers count in binary, and some decimals like 0.1 cannot be stored exactly, just like 1/3 cannot be written exactly in decimal.\n\nThe fix: use a decimal type for money, and never compare floats with ==.\n\nFollow for more coding surprises!",
+                    'hashtags' => ['shorts', 'coding', 'programming', 'python', 'javascript', 'floatingpoint', 'computerscience', 'learntocode'],
+                ],
                 'document' => self::floatSurprise(),
             ],
             [
                 'name' => 'The stack, explained with plates',
                 'type' => ProjectType::Explain, 'category' => 'Data structures', 'language' => 'python', 'tags' => ['stack', 'lifo', 'data-structures', 'beginner'],
+                'upload' => [
+                    'title' => 'The Stack data structure explained with plates (LIFO)',
+                    'description' => "A stack is like a pile of plates: you can only add or remove from the top. Last in, first out.\n\nYou see it every day: the undo button, the back button in your browser, and every function call you make.\n\nFollow for more data structures explained simply!",
+                    'hashtags' => ['shorts', 'coding', 'programming', 'datastructures', 'stack', 'lifo', 'python', 'beginner'],
+                ],
                 'document' => self::stackOfPlates(),
             ],
         ];

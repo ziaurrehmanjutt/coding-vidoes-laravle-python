@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\Storage;
     'category',
     'language',
     'tags',
+    'upload_title',
+    'upload_description',
+    'hashtags',
     'document',
     'render_status',
     'render_progress',
@@ -41,6 +44,7 @@ class Project extends Model
         return [
             'type' => ProjectType::class,
             'tags' => 'array',
+            'hashtags' => 'array',
             'document' => 'array',
             'render_status' => VideoStatus::class,
             'render_progress' => 'integer',
@@ -74,6 +78,22 @@ class Project extends Model
                 'rendering' => $query->whereIn('render_status', [VideoStatus::Pending, VideoStatus::Rendering]),
                 default => $query->where(fn (Builder $query) => $query->whereNull('render_status')->orWhere('render_status', VideoStatus::Failed)),
             });
+    }
+
+    /**
+     * The hashtags as one line, for example "#python #coding", ready to paste into YouTube.
+     */
+    public function hashtagText(): string
+    {
+        return collect($this->hashtags ?? [])->map(fn (string $tag) => '#'.$tag)->implode(' ');
+    }
+
+    /**
+     * Whether the title, description and hashtags are all filled in.
+     */
+    public function hasUploadDetails(): bool
+    {
+        return filled($this->upload_title) && filled($this->upload_description) && ! empty($this->hashtags);
     }
 
     /**

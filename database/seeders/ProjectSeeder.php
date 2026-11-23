@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Project;
 use Database\Seeders\Showcase\BatchOne;
+use Database\Seeders\Showcase\BatchTwo;
 use Illuminate\Database\Seeder;
 
 /**
@@ -16,15 +17,26 @@ class ProjectSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach ([BatchOne::projects()] as $batch) {
+        foreach ([BatchOne::projects(), BatchTwo::projects()] as $batch) {
             foreach ($batch as $definition) {
-                Project::firstOrCreate(['name' => $definition['name']], [
+                $project = Project::firstOrCreate(['name' => $definition['name']], [
                     'type' => $definition['type'],
                     'category' => $definition['category'],
                     'language' => $definition['language'] ?? null,
                     'tags' => $definition['tags'],
+                    'upload_title' => $definition['upload']['title'],
+                    'upload_description' => $definition['upload']['description'],
+                    'hashtags' => $definition['upload']['hashtags'],
                     'document' => $definition['document'],
                 ]);
+
+                // Videos that were created before their upload details existed get them now.
+                // Anything you already wrote is kept.
+                $project->fill(array_filter([
+                    'upload_title' => $project->upload_title ?? $definition['upload']['title'],
+                    'upload_description' => $project->upload_description ?? $definition['upload']['description'],
+                    'hashtags' => $project->hashtags ?? $definition['upload']['hashtags'],
+                ]))->save();
             }
         }
     }

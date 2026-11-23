@@ -6,6 +6,9 @@
              'category' => $project->category,
              'language' => $project->language,
              'tags' => $project->tags ?? [],
+             'upload_title' => $project->upload_title,
+             'upload_description' => $project->upload_description,
+             'hashtags' => $project->hashtags ?? [],
              'document' => $project->document,
              'render_status' => $project->render_status?->value,
              'playable' => $project->isPlayable(),
@@ -15,6 +18,7 @@
          data-voices="{{ json_encode($voices) }}"
          data-asset-url="{{ url('projects/'.$project->id.'/assets') }}"
          data-asset-store-url="{{ route('projects.assets.store', $project) }}"
+         data-upload-url="{{ route('projects.upload-details', $project) }}"
          data-save-url="{{ route('projects.update', $project) }}"
          data-render-url="{{ route('projects.render', $project) }}"
          data-status-url="{{ route('projects.status', $project) }}">
@@ -60,6 +64,41 @@
                     <label class="block text-sm"><span class="label">Tags (separate with commas)</span>
                         <input id="meta-tags" class="field" maxlength="300" value="{{ implode(', ', $project->tags ?? []) }}" placeholder="beginner, strings, tips">
                     </label>
+                </div>
+            </details>
+            <details class="relative">
+                <summary class="cursor-pointer list-none rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700">
+                    Upload details
+                    @if ($project->hasUploadDetails())<span class="ml-1 text-emerald-600" title="Title, description and hashtags are filled in">&#10003;</span>@endif
+                </summary>
+                <div class="absolute left-0 z-20 mt-2 w-[min(28rem,92vw)] space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                    <p class="text-xs text-slate-500">What you paste into YouTube when you upload this video. It is saved with the project.</p>
+
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label for="up-title" class="label !mb-0">Title <span id="up-title-count" class="font-normal text-slate-500"></span></label>
+                            <x-button type="button" variant="secondary" class="!px-2 !py-1 !text-xs" data-copy-target="#up-title">Copy</x-button>
+                        </div>
+                        <input id="up-title" class="field" maxlength="100" value="{{ $project->upload_title }}" placeholder="The title viewers will see">
+                    </div>
+
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label for="up-description" class="label !mb-0">Description</label>
+                            <x-button type="button" variant="secondary" class="!px-2 !py-1 !text-xs" data-copy-target="#up-description">Copy</x-button>
+                        </div>
+                        <textarea id="up-description" class="field" rows="7" maxlength="5000" placeholder="A few lines about the video">{{ $project->upload_description }}</textarea>
+                    </div>
+
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label for="up-hashtags" class="label !mb-0">Hashtags</label>
+                            <x-button type="button" variant="secondary" class="!px-2 !py-1 !text-xs" data-copy-target="#up-hashtags">Copy</x-button>
+                        </div>
+                        <input id="up-hashtags" class="field" maxlength="400" value="{{ $project->hashtagText() }}" placeholder="#python #coding #shorts">
+                    </div>
+
+                    <x-button id="up-suggest" type="button" variant="secondary">Suggest from this video</x-button>
                 </div>
             </details>
             <span id="save-state" class="text-xs text-slate-500" role="status"></span>

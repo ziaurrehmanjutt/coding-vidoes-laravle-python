@@ -141,6 +141,12 @@
                             @else
                                 Not made yet
                             @endif
+                            &middot;
+                            @if ($project->hasUploadDetails())
+                                <span class="whitespace-nowrap font-semibold text-indigo-600 dark:text-indigo-400" title="{{ $project->upload_title }}">&#10003; Upload details</span>
+                            @else
+                                <span class="whitespace-nowrap" title="Open the editor, then Upload details">No upload details</span>
+                            @endif
                         </p>
 
                         <div class="mt-auto flex flex-wrap items-center gap-2 pt-3">

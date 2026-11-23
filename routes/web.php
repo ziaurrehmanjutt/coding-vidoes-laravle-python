@@ -46,6 +46,7 @@ Route::resource('projects', ProjectController::class)->only(['index', 'store', '
 Route::controller(ProjectController::class)->prefix('projects/{project}')->name('projects.')->group(function () {
     Route::post('render', 'render')->name('render');
     Route::post('duplicate', 'duplicate')->name('duplicate');
+    Route::post('upload-details', 'suggestUpload')->name('upload-details');
     Route::post('assets', 'storeAsset')->name('assets.store');
     Route::get('assets/{asset}', 'showAsset')->where('asset', '[A-Za-z0-9]+\.(png|jpg|jpeg|webp|gif)')->name('assets.show');
     Route::get('status', 'status')->name('status');

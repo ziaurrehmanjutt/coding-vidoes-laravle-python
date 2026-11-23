@@ -14,7 +14,10 @@ function start(root) {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
     let name = data.name;
-    const meta = { type: data.type, category: data.category, language: data.language, tags: data.tags || [] };
+    const meta = {
+        type: data.type, category: data.category, language: data.language, tags: data.tags || [],
+        upload_title: data.upload_title, upload_description: data.upload_description, hashtags: data.hashtags || [],
+    };
     let doc = data.document;
     let selectedId = null;
     let time = 0;
@@ -849,6 +852,33 @@ function start(root) {
             changed();
         };
         ['#meta-type', '#meta-category', '#meta-language', '#meta-tags'].forEach((selector) => $(selector).addEventListener('input', readMeta));
+
+        const hashtagList = (text) => [...new Set(text.split(/[\s,]+/).map((tag) => tag.replace(/^#+/, '')).filter(Boolean))].slice(0, 15);
+        const showCount = () => { $('#up-title-count').textContent = `(${$('#up-title').value.length}/100)`; };
+        const readUpload = () => {
+            meta.upload_title = $('#up-title').value || null;
+            meta.upload_description = $('#up-description').value || null;
+            meta.hashtags = hashtagList($('#up-hashtags').value);
+            showCount();
+            changed();
+        };
+        ['#up-title', '#up-description', '#up-hashtags'].forEach((selector) => $(selector).addEventListener('input', readUpload));
+        showCount();
+
+        $('#up-suggest').addEventListener('click', async () => {
+            const filled = $('#up-title').value || $('#up-description').value || $('#up-hashtags').value;
+            if (filled && !window.confirm('Replace the current title, description and hashtags with a suggestion?')) return;
+
+            await save();
+            const response = await fetch(root.dataset.uploadUrl, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf } });
+            if (!response.ok) { setSaveState('Could not make a suggestion.', true); return; }
+
+            const suggestion = await response.json();
+            $('#up-title').value = suggestion.upload_title;
+            $('#up-description').value = suggestion.upload_description;
+            $('#up-hashtags').value = suggestion.hashtags.map((tag) => `#${tag}`).join(' ');
+            readUpload();
+        });
         $('#undo').addEventListener('click', undo);
         $('#redo').addEventListener('click', redo);
         $('#play').addEventListener('click', togglePlay);

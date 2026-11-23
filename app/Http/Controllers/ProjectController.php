@@ -11,6 +11,7 @@ use App\Http\Requests\UpdateProjectRequest;
 use App\Models\Project;
 use App\Models\VideoSetting;
 use App\Services\ProjectTemplates;
+use App\Services\ProjectUploadMetadata;
 use App\Services\PythonVideoService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -66,7 +67,7 @@ class ProjectController extends Controller
      */
     public function update(UpdateProjectRequest $request, Project $project): JsonResponse
     {
-        $details = $request->safe()->only(['name', 'type', 'category', 'language', 'tags']);
+        $details = $request->safe()->only(['name', 'type', 'category', 'language', 'tags', 'upload_title', 'upload_description', 'hashtags']);
 
         // The rules only check the important fields. The whole document is kept, because the
         // editor and the renderer need the rest too (position, size, colours, language and so on).
@@ -75,6 +76,16 @@ class ProjectController extends Controller
         if (isset($details['tags'])) {
             $details['tags'] = collect($details['tags'])
                 ->map(fn ($tag) => Str::lower(trim((string) $tag)))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if (isset($details['hashtags'])) {
+            $details['hashtags'] = collect($details['hashtags'])
+                ->map(fn ($tag) => ltrim(trim((string) $tag), '#'))
+                ->map(fn (string $tag) => preg_replace('/\s+/', '', $tag))
                 ->filter()
                 ->unique()
                 ->values()
@@ -99,6 +110,14 @@ class ProjectController extends Controller
         }
 
         return to_route('projects.edit', $copy)->with('status', 'Copied. You are editing the copy.');
+    }
+
+    /**
+     * Suggest an upload title, description and hashtags. Nothing is saved until the editor saves.
+     */
+    public function suggestUpload(Project $project, ProjectUploadMetadata $metadata): JsonResponse
+    {
+        return response()->json($metadata->suggest($project));
     }
 
     public function destroy(Project $project): RedirectResponse
